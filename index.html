@@ -52,10 +52,15 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .tray-piece{position:relative; cursor:grab;}
 .tray-block{position:absolute; background:#fff; border-radius:2px;}
 .tetris-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
-.grid-cell{background:var(--panel); font-size:7px; color:var(--sub); padding:2px; border-radius:2px;}
+.grid-cell{background:var(--panel); font-size:9px; color:var(--sub); padding:2px; border-radius:2px;}
 .grid-cell.filled{background:#fff;}
+.grid-cell.preview-valid{outline:3px solid var(--accent2); outline-offset:-3px;}
+.grid-cell.preview-invalid{outline:3px solid var(--danger); outline-offset:-3px;}
 .drag-ghost{position:fixed; pointer-events:none; z-index:999;}
 .ghost-block{position:absolute; background:#fff; opacity:.85; border-radius:3px;}
+#submit-btn{margin-top:18px;}
+@keyframes shake{ 10%,90%{transform:translateX(-4px);} 20%,80%{transform:translateX(4px);} 30%,50%,70%{transform:translateX(-7px);} 40%,60%{transform:translateX(7px);} }
+.tetris-grid.shake{animation:shake .4s;}
 </style>
 </head>
 <body>
@@ -100,6 +105,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   <div id="puzzle2-section">
     <div class="tetris-tray" id="tetris-tray"></div>
     <div class="tetris-grid" id="tetris-grid"></div>
+    <button class="big-btn" id="submit-btn" onclick="submitPattern()">Submit</button>
   </div>
 </div>
 
@@ -130,6 +136,15 @@ const TETROMINOES = {
   S: [[0,0],[1,0],[1,1],[2,1]],
   Z: [[0,1],[1,0],[1,1],[2,0]]
 };
+
+const HEART_PATTERN = [
+  [false,true, false,true, false],
+  [true, true, true, true, true ],
+  [true, true, true, true, true ],
+  [false,true, true, true, false],
+  [false,false,true, false,false]
+];
+const STAGE_PATTERNS = [HEART_PATTERN, null];
 
 let peer = null, conn = null, myRole = null;
 let ready = {1:false, 2:false};
@@ -257,18 +272,24 @@ function unlockPuzzle2(){
 }
 
 // --- Puzzle 2: tetris grid ---
-const CELL = 34, TCELL = 10, COLS = 8, ROWS = 8;
-const boardState = Array.from({length:ROWS}, () => Array(COLS).fill(false));
-const gridCellEls = [];
+const CELL = 52, TCELL = 16;
+let gridSize = 5, stageIndex = 0;
+let boardState = [];
+let gridCellEls = [];
 let dragState = null;
+let previewCells = [];
 
-function buildGrid(){
+function buildGrid(size){
+  gridSize = size;
+  boardState = Array.from({length:size}, () => Array(size).fill(false));
+  gridCellEls = [];
   const grid = $('tetris-grid');
-  grid.style.gridTemplateColumns = `repeat(${COLS}, ${CELL}px)`;
-  grid.style.gridTemplateRows = `repeat(${ROWS}, ${CELL}px)`;
-  for(let r = 0; r < ROWS; r++){
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${size}, ${CELL}px)`;
+  grid.style.gridTemplateRows = `repeat(${size}, ${CELL}px)`;
+  for(let r = 0; r < size; r++){
     const rowArr = [];
-    for(let c = 0; c < COLS; c++){
+    for(let c = 0; c < size; c++){
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
       cell.textContent = String.fromCharCode(65 + c) + (r + 1);
@@ -319,6 +340,7 @@ function startDrag(e, offsets){
   document.body.appendChild(ghost);
   dragState = {offsets, ghost};
   positionGhost(e.clientX, e.clientY);
+  updatePreview(e.clientX, e.clientY, offsets);
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragUp);
 }
@@ -326,26 +348,69 @@ function positionGhost(x, y){
   dragState.ghost.style.left = (x - CELL/2) + 'px';
   dragState.ghost.style.top = (y - CELL/2) + 'px';
 }
-function onDragMove(e){ positionGhost(e.clientX, e.clientY); }
+function targetCells(x, y, offsets){
+  const rect = $('tetris-grid').getBoundingClientRect();
+  if(x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) return null;
+  const col0 = Math.floor((x - rect.left) / CELL);
+  const row0 = Math.floor((y - rect.top) / CELL);
+  return offsets.map(([r,c]) => [row0 + r, col0 + c]);
+}
+function clearPreview(){
+  previewCells.forEach(([r,c]) => gridCellEls[r][c].classList.remove('preview-valid','preview-invalid'));
+  previewCells = [];
+}
+function updatePreview(x, y, offsets){
+  clearPreview();
+  const cells = targetCells(x, y, offsets);
+  if(!cells) return;
+  const valid = cells.every(([r,c]) => r >= 0 && r < gridSize && c >= 0 && c < gridSize && !boardState[r][c]);
+  cells.forEach(([r,c]) => {
+    if(r >= 0 && r < gridSize && c >= 0 && c < gridSize){
+      gridCellEls[r][c].classList.add(valid ? 'preview-valid' : 'preview-invalid');
+      previewCells.push([r,c]);
+    }
+  });
+}
+function onDragMove(e){ positionGhost(e.clientX, e.clientY); updatePreview(e.clientX, e.clientY, dragState.offsets); }
 function onDragUp(e){
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragUp);
   tryPlace(e.clientX, e.clientY, dragState.offsets);
+  clearPreview();
   dragState.ghost.remove();
   dragState = null;
 }
 function tryPlace(x, y, offsets){
-  const rect = $('tetris-grid').getBoundingClientRect();
-  if(x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) return;
-  const col0 = Math.floor((x - rect.left) / CELL);
-  const row0 = Math.floor((y - rect.top) / CELL);
-  const cells = offsets.map(([r,c]) => [row0 + r, col0 + c]);
-  const valid = cells.every(([r,c]) => r >= 0 && r < ROWS && c >= 0 && c < COLS && !boardState[r][c]);
+  const cells = targetCells(x, y, offsets);
+  if(!cells) return;
+  const valid = cells.every(([r,c]) => r >= 0 && r < gridSize && c >= 0 && c < gridSize && !boardState[r][c]);
   if(!valid) return;
   cells.forEach(([r,c]) => { boardState[r][c] = true; gridCellEls[r][c].classList.add('filled'); });
 }
 
-buildGrid();
+function resetBoard(){
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
+    boardState[r][c] = false;
+    gridCellEls[r][c].classList.remove('filled');
+  }
+}
+function shakeGrid(){
+  const grid = $('tetris-grid');
+  grid.classList.add('shake');
+  setTimeout(() => grid.classList.remove('shake'), 400);
+}
+function submitPattern(){
+  const target = STAGE_PATTERNS[stageIndex];
+  if(!target){ resetBoard(); return; }
+  let correct = true;
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
+    if(!!boardState[r][c] !== !!target[r][c]) correct = false;
+  }
+  if(correct){ stageIndex++; buildGrid(8); }
+  else { shakeGrid(); resetBoard(); }
+}
+
+buildGrid(5);
 buildTray();
 </script>
 </body>
