@@ -59,14 +59,23 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .drag-ghost{position:fixed; pointer-events:none; z-index:999;}
 .ghost-block{position:absolute; background:#fff; opacity:.85; border-radius:3px;}
 #submit-btn{margin-top:18px;}
-@keyframes shake{ 10%,90%{transform:translateX(-4px);} 20%,80%{transform:translateX(4px);} 30%,50%,70%{transform:translateX(-7px);} 40%,60%{transform:translateX(7px);} }
-.tetris-grid.shake{animation:shake .4s;}
+@keyframes shake{ 20%,60%{transform:translateX(-3px);} 40%,80%{transform:translateX(3px);} }
+.tetris-grid.shake{animation:shake .25s ease-in-out;}
+.tetris-grid{transition:width .5s ease, height .5s ease;}
+.grid-cell{transition:opacity .3s ease;}
+.grid-cell.cell-hidden{opacity:0;}
+#puzzle1-info{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
+#puzzle1-info.visible{max-height:400px; opacity:1; margin-top:24px;}
+.mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
+.mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
+.mini-cell.filled{background:#fff;}
+#skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 </style>
 </head>
 <body>
 
 <div id="screen-choose" class="screen active">
-  <h1 class="version-title">v5</h1>
+  <h1 class="version-title">v7</h1>
   <div class="row" style="margin-top:20px;">
     <button class="role-btn" onclick="startHost()">Player 1<br><small>(hosts)</small></button>
     <button class="role-btn" onclick="showJoin()">Player 2<br><small>(joins)</small></button>
@@ -97,6 +106,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <div id="screen-game1" class="screen">
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
+  <div id="puzzle1-info">
+    <div class="mini-grid" id="heart-preview"></div>
+  </div>
+  <button id="skip-btn" class="big-btn" onclick="completePuzzle1(true)">Skip to next puzzle (test)</button>
 </div>
 
 <div id="screen-game2" class="screen">
@@ -130,7 +143,7 @@ const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const TETROMINOES = {
   I: [[0,0],[0,1],[0,2],[0,3]],
   O: [[0,0],[0,1],[1,0],[1,1]],
-  T: [[0,1],[1,0],[1,1],[1,2]],
+  T: [[0,0],[0,1],[0,2],[1,1]],
   L: [[0,0],[1,0],[2,0],[2,1]],
   J: [[0,1],[1,1],[2,0],[2,1]],
   S: [[0,0],[1,0],[1,1],[2,1]],
@@ -196,7 +209,7 @@ function handleData(msg){
   if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
   else if(msg.type === 'press'){ if(myRole === 2) lightUp(msg.payload.color); }
-  else if(msg.type === 'win'){ unlockPuzzle2(); }
+  else if(msg.type === 'win'){ completePuzzle1(false); }
 }
 
 function pressReady(){
@@ -259,16 +272,35 @@ function checkProgress(color){
   const next = progress.length;
   if(puzzle.order[next] === color){
     progress.push(color);
-    if(progress.length === puzzle.order.length){ send('win', {}); unlockPuzzle2(); }
+    if(progress.length === puzzle.order.length){ completePuzzle1(true); }
   }else{
     progress = (puzzle.order[0] === color) ? [color] : [];
   }
 }
 function lightUp(color){ $('light').style.background = color; }
 
+function completePuzzle1(broadcast){
+  if(broadcast) send('win', {});
+  revealHeart();
+  unlockPuzzle2();
+}
+function revealHeart(){
+  if(myRole !== 1) return;
+  $('puzzle1-info').classList.add('visible');
+}
 function unlockPuzzle2(){
   if(myRole !== 2) return;
   $('puzzle2-section').classList.add('visible');
+}
+function buildHeartPreview(){
+  const el = $('heart-preview');
+  el.style.gridTemplateColumns = `repeat(5, 20px)`;
+  el.style.gridTemplateRows = `repeat(5, 20px)`;
+  HEART_PATTERN.forEach(row => row.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'mini-cell' + (v ? ' filled' : '');
+    el.appendChild(d);
+  }));
 }
 
 // --- Puzzle 2: tetris grid ---
@@ -279,6 +311,8 @@ let gridCellEls = [];
 let dragState = null;
 let previewCells = [];
 
+function gridPixelSize(size){ return size * CELL + (size - 1) * 2 + 8; }
+
 function buildGrid(size){
   gridSize = size;
   boardState = Array.from({length:size}, () => Array(size).fill(false));
@@ -287,6 +321,8 @@ function buildGrid(size){
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = `repeat(${size}, ${CELL}px)`;
   grid.style.gridTemplateRows = `repeat(${size}, ${CELL}px)`;
+  grid.style.width = gridPixelSize(size) + 'px';
+  grid.style.height = gridPixelSize(size) + 'px';
   for(let r = 0; r < size; r++){
     const rowArr = [];
     for(let c = 0; c < size; c++){
@@ -399,6 +435,23 @@ function shakeGrid(){
   grid.classList.add('shake');
   setTimeout(() => grid.classList.remove('shake'), 400);
 }
+function expandGridAnimated(newSize){
+  const grid = $('tetris-grid');
+  Array.from(grid.children).forEach(c => c.classList.add('cell-hidden'));
+  setTimeout(() => {
+    grid.innerHTML = '';
+    grid.style.width = gridPixelSize(newSize) + 'px';
+    grid.style.height = gridPixelSize(newSize) + 'px';
+    setTimeout(() => {
+      buildGrid(newSize);
+      const cells = Array.from(grid.children);
+      cells.forEach(c => c.classList.add('cell-hidden'));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        cells.forEach(c => c.classList.remove('cell-hidden'));
+      }));
+    }, 520);
+  }, 320);
+}
 function submitPattern(){
   const target = STAGE_PATTERNS[stageIndex];
   if(!target){ resetBoard(); return; }
@@ -406,12 +459,13 @@ function submitPattern(){
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
     if(!!boardState[r][c] !== !!target[r][c]) correct = false;
   }
-  if(correct){ stageIndex++; buildGrid(8); }
+  if(correct){ stageIndex++; expandGridAnimated(8); }
   else { shakeGrid(); resetBoard(); }
 }
 
 buildGrid(5);
 buildTray();
+buildHeartPreview();
 </script>
 </body>
 </html>
