@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Two Player Escape Room</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{
+  --bg:#12131a; --panel:#1c1e29; --panel2:#262838; --text:#f2f2f7; --sub:#9a9cb0;
+  --accent:#5865f2; --accent2:#3ddc97; --danger:#ff5c72;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#f4f5fb; --panel:#fff; --panel2:#eceefb; --text:#1b1c24; --sub:#63647a; }
+}
+:root[data-theme="light"]{ --bg:#f4f5fb; --panel:#fff; --panel2:#eceefb; --text:#1b1c24; --sub:#63647a; }
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  display:flex; align-items:center; justify-content:center; min-height:100%; padding:20px;
+  padding-top:calc(20px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+}
+.screen{display:none; width:100%; max-width:520px; text-align:center;}
+.screen.active{display:block;}
+h1{font-size:1.5rem; margin:0 0 6px;}
+p.sub{color:var(--sub); margin:0 0 24px;}
+.row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+.role-btn{ flex:1 1 140px; max-width:200px; padding:28px 16px; border-radius:16px; border:2px solid var(--panel2); background:var(--panel); color:var(--text); font-size:1.1rem; font-weight:600; cursor:pointer; }
+.role-btn:hover{border-color:var(--accent);}
+.big-btn{ padding:14px 32px; border-radius:14px; border:none; background:var(--accent); color:#fff; font-size:1.1rem; font-weight:600; cursor:pointer; }
+.big-btn:disabled{opacity:.5; cursor:default;}
+input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text-transform:uppercase; padding:12px; width:160px; border-radius:10px; border:2px solid var(--panel2); background:var(--panel); color:var(--text); margin:0 10px 16px; }
+.code-display{ font-size:2.2rem; font-weight:800; letter-spacing:.15em; background:var(--panel); border-radius:14px; padding:18px; margin:16px 0; }
+.waiting{color:var(--sub); margin-top:16px;}
+.countdown-num{font-size:5rem; font-weight:800;}
+.deco{ display:flex; align-items:flex-end; justify-content:center; gap:14px; height:180px; margin:24px auto 8px; padding:0 10px; }
+.pillar{width:34px; border-radius:6px 6px 0 0;}
+.shelf{ display:flex; gap:16px; justify-content:center; background:var(--panel); border-radius:16px; padding:20px; margin-top:10px; }
+.shelf-btn{ width:56px; height:56px; border-radius:50%; border:3px solid var(--panel2); background:var(--panel2); cursor:pointer; }
+.shelf-btn:active{transform:scale(0.93);}
+.light{ width:160px; height:160px; border-radius:50%; margin:24px auto; background:#3a3c4c; box-shadow: inset 0 0 30px rgba(0,0,0,.3); transition:background .15s; }
+.hint{color:var(--sub); font-size:1rem;}
+.win{font-size:2rem; font-weight:800; color:var(--accent2);}
+.err{color:var(--danger); font-size:.9rem; margin-top:10px; min-height:1.2em;}
+</style>
+</head>
+<body>
+
+<div id="screen-choose" class="screen active">
+  <h1>Two Player Escape Room</h1>
+  <p class="sub">Sit together (or call each other) — you'll need to talk.</p>
+  <div class="row">
+    <button class="role-btn" onclick="startHost()">Player 1<br><small>(hosts)</small></button>
+    <button class="role-btn" onclick="showJoin()">Player 2<br><small>(joins)</small></button>
+  </div>
+  <div id="join-box" style="display:none; margin-top:20px;">
+    <div><input id="code-in" class="code-input" maxlength="4" placeholder="CODE"></div>
+    <button class="big-btn" onclick="startJoin()">Connect</button>
+  </div>
+  <div class="err" id="connect-err"></div>
+</div>
+
+<div id="screen-hosting" class="screen">
+  <h1>Share this code</h1>
+  <p class="sub">Tell Player 2 to enter it.</p>
+  <div class="code-display" id="host-code">----</div>
+  <p class="sub">Waiting for them to connect…</p>
+</div>
+
+<div id="screen-ready" class="screen">
+  <h1 id="ready-title"></h1>
+  <button id="ready-btn" class="big-btn" onclick="pressReady()">Ready</button>
+  <div id="waiting-text" class="waiting" style="display:none;">Waiting for other player…</div>
+</div>
+
+<div id="screen-countdown" class="screen">
+  <div class="countdown-num" id="countdown-num">3</div>
+</div>
+
+<div id="screen-game1" class="screen">
+  <h1>Match the order</h1>
+  <p class="sub">Buttons are unlabelled — tell your partner what each one does.</p>
+  <div class="deco" id="pillars"></div>
+  <div class="shelf" id="shelf"></div>
+</div>
+
+<div id="screen-game2" class="screen">
+  <div class="light" id="light"></div>
+  <div class="hint">From shortest to tallest</div>
+</div>
+
+<div id="screen-win" class="screen">
+  <div class="win">You win! 🎉</div>
+</div>
+
+<script>
+const COLORS = ['#ff5c72','#ffb347','#ffe066','#3ddc97','#5865f2'];
+const HEIGHTS = [40,72,104,136,168];
+const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+let peer = null, conn = null, myRole = null;
+let ready = {1:false, 2:false};
+let started = false;
+let puzzle = null;
+let progress = [];
+
+const $ = id => document.getElementById(id);
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); }
+function makeCode(){ return Array.from({length:4}, ()=>ALPHA[Math.floor(Math.random()*ALPHA.length)]).join(''); }
+
+function startHost(){
+  myRole = 1;
+  show('screen-hosting');
+  attemptHost();
+}
+function attemptHost(){
+  const code = makeCode();
+  if(peer) peer.destroy();
+  peer = new Peer('2pesc-' + code);
+  peer.on('open', () => { $('host-code').textContent = code; });
+  peer.on('connection', c => { conn = c; wireConn(); });
+  peer.on('error', err => {
+    if(err.type === 'unavailable-id'){ attemptHost(); }
+    else { $('connect-err').textContent = 'Connection error: ' + err.type; }
+  });
+}
+
+function showJoin(){ $('join-box').style.display = 'block'; }
+function startJoin(){
+  const code = $('code-in').value.trim().toUpperCase();
+  if(code.length !== 4){ $('connect-err').textContent = 'Enter the 4-character code.'; return; }
+  myRole = 2;
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect('2pesc-' + code);
+    conn.on('open', () => wireConn());
+    conn.on('error', () => { $('connect-err').textContent = 'Could not connect — check the code.'; });
+  });
+  peer.on('error', err => { $('connect-err').textContent = 'Connection error: ' + err.type; });
+}
+
+function wireConn(){
+  conn.on('data', handleData);
+  $('ready-title').textContent = 'Player ' + myRole;
+  show('screen-ready');
+}
+function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); }
+function handleData(msg){
+  if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
+  else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
+  else if(msg.type === 'press'){ if(myRole === 2) lightUp(msg.payload.color); }
+  else if(msg.type === 'win'){ show('screen-win'); }
+}
+
+function pressReady(){
+  ready[myRole] = true;
+  $('ready-btn').disabled = true;
+  send('ready', {role: myRole});
+  updateWaiting();
+  tryStart();
+}
+function updateWaiting(){ $('waiting-text').style.display = (ready[1] && ready[2]) ? 'none' : 'block'; }
+function shuffled(arr){ return [...arr].sort(() => Math.random() - 0.5); }
+function tryStart(){
+  if(started || !(ready[1] && ready[2])) return;
+  if(myRole === 1){
+    started = true;
+    puzzle = { order: shuffled(COLORS), buttonMap: shuffled(COLORS) };
+    send('start', {puzzle});
+    runCountdown();
+  }
+}
+
+function runCountdown(){
+  show('screen-countdown');
+  const steps = ['3','2','1','Go!'];
+  let i = 0;
+  $('countdown-num').textContent = steps[i];
+  const t = setInterval(() => {
+    i++;
+    if(i >= steps.length){ clearInterval(t); startGame(); return; }
+    $('countdown-num').textContent = steps[i];
+  }, 700);
+}
+
+function startGame(){
+  if(myRole === 1){ renderPillars(); renderShelf(); show('screen-game1'); }
+  else{ show('screen-game2'); }
+}
+function renderPillars(){
+  const el = $('pillars'); el.innerHTML = '';
+  const display = shuffled(puzzle.order.map((c,i) => ({color:c, height:HEIGHTS[i]})));
+  display.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'pillar'; d.style.height = p.height + 'px'; d.style.background = p.color;
+    el.appendChild(d);
+  });
+}
+function renderShelf(){
+  const el = $('shelf'); el.innerHTML = '';
+  puzzle.buttonMap.forEach((color, idx) => {
+    const b = document.createElement('button');
+    b.className = 'shelf-btn';
+    b.onclick = () => pressButton(idx);
+    el.appendChild(b);
+  });
+}
+function pressButton(idx){
+  const color = puzzle.buttonMap[idx];
+  send('press', {color});
+  checkProgress(color);
+}
+function checkProgress(color){
+  const next = progress.length;
+  if(puzzle.order[next] === color){
+    progress.push(color);
+    if(progress.length === puzzle.order.length){ send('win', {}); show('screen-win'); }
+  }else{
+    progress = (puzzle.order[0] === color) ? [color] : [];
+  }
+}
+function lightUp(color){ $('light').style.background = color; }
+</script>
+</body>
+</html>
