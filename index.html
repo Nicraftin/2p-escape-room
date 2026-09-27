@@ -50,9 +50,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <body>
 
 <div id="screen-choose" class="screen active">
-  <h1>Two Player Escape Room</h1>
-  <p class="sub">Sit together (or call each other) — you'll need to talk.</p>
-  <div class="row">
+  <div class="row" style="margin-top:20px;">
     <button class="role-btn" onclick="startHost()">Player 1<br><small>(hosts)</small></button>
     <button class="role-btn" onclick="showJoin()">Player 2<br><small>(joins)</small></button>
   </div>
@@ -71,7 +69,6 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-ready" class="screen">
-  <h1 id="ready-title"></h1>
   <button id="ready-btn" class="big-btn" onclick="pressReady()">Ready</button>
   <div id="waiting-text" class="waiting" style="display:none;">Waiting for other player…</div>
 </div>
@@ -81,8 +78,6 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game1" class="screen">
-  <h1>Match the order</h1>
-  <p class="sub">Buttons are unlabelled — tell your partner what each one does.</p>
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
 </div>
@@ -97,8 +92,18 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <script>
-const COLORS = ['#ff5c72','#ffb347','#ffe066','#3ddc97','#5865f2'];
-const HEIGHTS = [40,72,104,136,168];
+const C = { red:'#ff5c72', orange:'#ffb347', yellow:'#ffe066', green:'#3ddc97', blue:'#5865f2' };
+const PUZZLE = {
+  buttonMap: [C.green, C.blue, C.orange, C.yellow, C.red],
+  pillars: [
+    {color:C.yellow, height:136},
+    {color:C.green,  height:72},
+    {color:C.red,    height:168},
+    {color:C.orange, height:104},
+    {color:C.blue,   height:40}
+  ],
+  order: [C.blue, C.green, C.orange, C.yellow, C.red]
+};
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 let peer = null, conn = null, myRole = null;
@@ -144,7 +149,6 @@ function startJoin(){
 
 function wireConn(){
   conn.on('data', handleData);
-  $('ready-title').textContent = 'Player ' + myRole;
   show('screen-ready');
 }
 function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); }
@@ -162,13 +166,12 @@ function pressReady(){
   updateWaiting();
   tryStart();
 }
-function updateWaiting(){ $('waiting-text').style.display = (ready[1] && ready[2]) ? 'none' : 'block'; }
-function shuffled(arr){ return [...arr].sort(() => Math.random() - 0.5); }
+function updateWaiting(){ $('waiting-text').style.display = (ready[myRole] && !(ready[1] && ready[2])) ? 'block' : 'none'; }
 function tryStart(){
   if(started || !(ready[1] && ready[2])) return;
   if(myRole === 1){
     started = true;
-    puzzle = { order: shuffled(COLORS), buttonMap: shuffled(COLORS) };
+    puzzle = PUZZLE;
     send('start', {puzzle});
     runCountdown();
   }
@@ -192,8 +195,7 @@ function startGame(){
 }
 function renderPillars(){
   const el = $('pillars'); el.innerHTML = '';
-  const display = shuffled(puzzle.order.map((c,i) => ({color:c, height:HEIGHTS[i]})));
-  display.forEach(p => {
+  puzzle.pillars.forEach(p => {
     const d = document.createElement('div');
     d.className = 'pillar'; d.style.height = p.height + 'px'; d.style.background = p.color;
     el.appendChild(d);
