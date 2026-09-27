@@ -94,15 +94,15 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <script>
 const C = { red:'#ff5c72', orange:'#ffb347', yellow:'#ffe066', green:'#3ddc97', blue:'#5865f2' };
 const PUZZLE = {
-  buttonMap: [C.green, C.blue, C.orange, C.yellow, C.red],
+  buttonMap: [C.yellow, C.green, C.red, C.orange, C.blue],
   pillars: [
     {color:C.yellow, height:136},
-    {color:C.green,  height:72},
+    {color:C.blue,   height:72},
     {color:C.red,    height:168},
-    {color:C.orange, height:104},
-    {color:C.blue,   height:40}
+    {color:C.green,  height:40},
+    {color:C.orange, height:104}
   ],
-  order: [C.blue, C.green, C.orange, C.yellow, C.red]
+  order: [C.green, C.blue, C.orange, C.yellow, C.red]
 };
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
