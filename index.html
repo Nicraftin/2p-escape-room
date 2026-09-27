@@ -41,9 +41,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .shelf{ display:flex; gap:16px; justify-content:center; background:var(--panel); border-radius:16px; padding:20px; margin-top:10px; }
 .shelf-btn{ width:56px; height:56px; border-radius:50%; border:3px solid var(--panel2); background:var(--panel2); cursor:pointer; }
 .shelf-btn:active{transform:scale(0.93);}
+.shelf-btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
 .light{ position:relative; width:160px; height:160px; border-radius:50%; margin:24px auto; background:#3a3c4c; box-shadow: inset 0 0 30px rgba(0,0,0,.3); transition:background .4s ease, box-shadow .4s ease; }
-.light.needs-color{ cursor:grab; box-shadow: inset 0 0 30px rgba(0,0,0,.3), 0 0 0 4px rgba(255,255,255,.85), 0 0 26px 6px rgba(255,255,255,.55); }
-.light.needs-color.drag-hover{ box-shadow: inset 0 0 30px rgba(0,0,0,.3), 0 0 0 4px var(--accent2), 0 0 28px 8px rgba(61,220,151,.65); }
+.light.needs-color.lit{ box-shadow: inset 0 0 30px rgba(0,0,0,.3), 0 0 0 4px rgba(255,255,255,.85), 0 0 26px 6px rgba(255,255,255,.55); }
+.light.needs-color.lit.drag-hover{ box-shadow: inset 0 0 30px rgba(0,0,0,.3), 0 0 0 4px var(--accent2), 0 0 28px 8px rgba(61,220,151,.65); }
 .charged-piece{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); cursor:grab; z-index:5; }
 .charged-block{ position:absolute; border-radius:3px; box-shadow:0 0 6px rgba(0,0,0,.25); }
 .hint{color:var(--sub); font-size:1rem;}
@@ -64,15 +65,15 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #submit-btn{margin-top:18px;}
 @keyframes shake{ 25%{transform:translateX(-6px);} 50%{transform:translateX(6px);} 75%{transform:translateX(-6px);} 100%{transform:translateX(0);} }
 .tetris-grid.shake{animation:shake .6s ease-in-out;}
-.tetris-grid{transition:width .5s ease, height .5s ease;}
 .grid-cell{transition:opacity .3s ease;}
 .grid-cell.cell-hidden{opacity:0;}
 #puzzle1-info{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
-#puzzle1-info.visible{max-height:400px; opacity:1; margin-top:24px;}
+#puzzle1-info.visible{max-height:600px; opacity:1; margin-top:24px;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
-#color-preview{margin-top:16px;}
+#puzzle1-info{display:flex; gap:20px; justify-content:center; align-items:flex-start; flex-wrap:wrap;}
+#puzzle1-info .mini-grid{margin:0;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
 </style>
@@ -113,6 +114,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   <div id="puzzle1-info">
     <div class="mini-grid" id="heart-preview"></div>
     <div class="mini-grid" id="color-preview" style="display:none;"></div>
+    <div class="mini-grid" id="submit-preview"></div>
   </div>
   <button id="skip-btn" class="big-btn" onclick="skipPuzzle1()">Skip to next puzzle (test)</button>
 </div>
@@ -165,21 +167,19 @@ const HEART_PATTERN = [
   [false,false,true, false,false]
 ];
 const COLOR_PATTERN = [
-  [null,null,'white','white','white','white',null,null],
-  [null,null,'white',null,null,'white','white','white'],
-  [null,'blue','white',null,'white','white','white',null],
-  ['white','blue','white','white','white','white',null,null],
-  ['white','blue','blue','blue','blue','blue',null,null],
-  ['white','white','white','blue','blue',null,null,null],
-  ['white','white','white','blue','blue',null,null,null],
-  ['white','white','white','white','blue',null,null,null]
+  [ 'orange','yellow','yellow','yellow','green' ],
+  [ 'orange','orange','yellow','green', 'green' ],
+  [ 'red',   'orange',null,    'green', 'blue'  ],
+  [ 'red',   'white', 'white', 'white', 'blue'  ],
+  [ 'red',   'red',   'white', 'blue',  'blue'  ]
 ];
 const STAGE_PATTERNS = [HEART_PATTERN, COLOR_PATTERN];
 function colorCategory(hex){
   if(hex === '#ffffff') return 'white';
-  if(hex === C.blue) return 'blue';
+  for(const k in C) if(C[k] === hex) return k;
   return null;
 }
+function patternHex(v){ return v === 'white' ? '#ffffff' : (v ? C[v] : ''); }
 function patternMatches(target){
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
     const t = target[r][c];
@@ -239,9 +239,11 @@ function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); 
 function handleData(msg){
   if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
-  else if(msg.type === 'press'){ if(myRole === 2) lightUp(msg.payload.color); }
+  else if(msg.type === 'press'){ if(myRole === 2 && !pieceOnLight) lightUp(msg.payload.color); }
   else if(msg.type === 'win'){ completePuzzle1(false); }
   else if(msg.type === 'stage2'){ revealColorPattern(); }
+  else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board); }
+  else if(msg.type === 'lightblock'){ setShelfBlocked(msg.payload.blocked); }
   else if(msg.type === 'skiptetris1'){ if(myRole === 2){ advanceToColorStage(); send('stage2', {}); } }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
 }
@@ -297,7 +299,13 @@ function renderShelf(){
     el.appendChild(b);
   });
 }
+let shelfBlocked = false;
+function setShelfBlocked(v){
+  shelfBlocked = v;
+  document.querySelectorAll('.shelf-btn').forEach(b => b.disabled = v);
+}
 function pressButton(idx){
+  if(shelfBlocked) return;
   const color = puzzle.buttonMap[idx];
   send('press', {color});
   checkProgress(color);
@@ -312,7 +320,9 @@ function checkProgress(color){
   }
 }
 let currentLightColor = null;
-function lightUp(color){ $('light').style.background = color; currentLightColor = color; }
+let pieceOnLight = false;
+function setPieceOnLight(v){ pieceOnLight = v; send('lightblock', {blocked: v}); }
+function lightUp(color){ const l = $('light'); l.style.background = color; l.classList.add('lit'); currentLightColor = color; }
 
 function skipPuzzle1(){
   completePuzzle1(true);
@@ -337,15 +347,29 @@ function revealColorPattern(){
 }
 function buildColorPreview(){
   const el = $('color-preview');
-  el.style.gridTemplateColumns = `repeat(8, 14px)`;
-  el.style.gridTemplateRows = `repeat(8, 14px)`;
+  el.style.gridTemplateColumns = `repeat(5, 20px)`;
+  el.style.gridTemplateRows = `repeat(5, 20px)`;
   COLOR_PATTERN.forEach(row => row.forEach(v => {
     const d = document.createElement('div');
     d.className = 'mini-cell';
-    d.style.width = '14px'; d.style.height = '14px';
-    d.style.background = v === 'white' ? '#ffffff' : (v === 'blue' ? C.blue : '');
+    d.style.background = patternHex(v);
     el.appendChild(d);
   }));
+}
+function buildSubmitPreview(){
+  const el = $('submit-preview');
+  el.style.gridTemplateColumns = `repeat(5, 20px)`;
+  el.style.gridTemplateRows = `repeat(5, 20px)`;
+  for(let i = 0; i < 25; i++){
+    const d = document.createElement('div');
+    d.className = 'mini-cell';
+    el.appendChild(d);
+  }
+}
+function renderSubmission(board){
+  if(myRole !== 1) return;
+  const cells = $('submit-preview').children;
+  board.forEach((row, r) => row.forEach((v, c) => { cells[r * 5 + c].style.background = v || ''; }));
 }
 function buildHeartPreview(){
   const el = $('heart-preview');
@@ -485,8 +509,9 @@ function onDragUp(e){
   if(!dragState.fromCharged && canColorAtLight() && isOverLight(e.clientX, e.clientY)){
     colorizeAtLight(dragState.ghost, dragState.offsets);
   } else {
-    tryPlace(e.clientX, e.clientY, dragState.offsets, dragState.color);
+    const ok = tryPlace(e.clientX, e.clientY, dragState.offsets, dragState.color);
     dragState.ghost.remove();
+    if(!ok && dragState.fromCharged) placeChargedPiece(dragState.offsets, dragState.color);
   }
   clearPreview();
   dragState = null;
@@ -494,6 +519,7 @@ function onDragUp(e){
 function colorizeAtLight(ghost, offsets){
   const light = $('light');
   const color = currentLightColor;
+  setPieceOnLight(true);
   const lr = light.getBoundingClientRect();
   const gr = ghost.getBoundingClientRect();
   ghost.style.transition = 'left .35s ease, top .35s ease, transform .5s ease';
@@ -505,6 +531,7 @@ function colorizeAtLight(ghost, offsets){
   setTimeout(() => {
     ghost.querySelectorAll('.ghost-block').forEach(b => b.style.background = color);
     light.style.background = '';
+    light.classList.remove('lit');
     currentLightColor = null;
   }, 380);
   setTimeout(() => {
@@ -514,6 +541,7 @@ function colorizeAtLight(ghost, offsets){
 }
 function placeChargedPiece(offsets, color){
   chargedPiece = {offsets, color};
+  setPieceOnLight(true);
   const light = $('light');
   const old = $('charged-piece');
   if(old) old.remove();
@@ -522,7 +550,7 @@ function placeChargedPiece(offsets, color){
   el.id = 'charged-piece';
   const maxR = Math.max(...offsets.map(o => o[0]));
   const maxC = Math.max(...offsets.map(o => o[1]));
-  const CS = TCELL * 2;
+  const CS = CELL;
   el.style.width = ((maxC + 1) * CS) + 'px';
   el.style.height = ((maxR + 1) * CS) + 'px';
   offsets.forEach(([r,c]) => {
@@ -537,16 +565,18 @@ function placeChargedPiece(offsets, color){
     e.preventDefault();
     chargedPiece = null;
     el.remove();
+    setPieceOnLight(false);
     beginDrag(e, offsets, color, true);
   });
   light.appendChild(el);
 }
 function tryPlace(x, y, offsets, color){
   const cells = targetCells(x, y, offsets);
-  if(!cells) return;
+  if(!cells) return false;
   const valid = cells.every(([r,c]) => r >= 0 && r < gridSize && c >= 0 && c < gridSize && !boardState[r][c]);
-  if(!valid) return;
+  if(!valid) return false;
   cells.forEach(([r,c]) => { boardState[r][c] = color; gridCellEls[r][c].style.background = color; gridCellEls[r][c].classList.add('filled'); });
+  return true;
 }
 
 function resetBoard(){
@@ -561,30 +591,14 @@ function shakeGrid(){
   grid.classList.add('shake');
   setTimeout(() => grid.classList.remove('shake'), 600);
 }
-function expandGridAnimated(newSize){
-  const grid = $('tetris-grid');
-  Array.from(grid.children).forEach(c => c.classList.add('cell-hidden'));
-  setTimeout(() => {
-    grid.innerHTML = '';
-    grid.style.width = gridPixelSize(newSize) + 'px';
-    grid.style.height = gridPixelSize(newSize) + 'px';
-    setTimeout(() => {
-      buildGrid(newSize);
-      const cells = Array.from(grid.children);
-      cells.forEach(c => c.classList.add('cell-hidden'));
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        cells.forEach(c => c.classList.remove('cell-hidden'));
-      }));
-    }, 520);
-  }, 320);
-}
 function advanceToColorStage(){
   if(stageIndex === 1) return;
   stageIndex = 1;
-  expandGridAnimated(8);
+  resetBoard();
   $('light').classList.add('needs-color');
 }
 function submitPattern(){
+  send('submitted', {board: boardState.map(r => r.slice())});
   const target = STAGE_PATTERNS[stageIndex];
   if(!patternMatches(target)){ shakeGrid(); resetBoard(); return; }
   if(stageIndex === 0){
@@ -602,6 +616,7 @@ buildGrid(5);
 buildTray();
 buildHeartPreview();
 buildColorPreview();
+buildSubmitPreview();
 </script>
 </body>
 </html>
