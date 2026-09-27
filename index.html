@@ -57,10 +57,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .grid-cell.preview-valid{outline:3px solid var(--accent2); outline-offset:-3px;}
 .grid-cell.preview-invalid{outline:3px solid var(--danger); outline-offset:-3px;}
 .drag-ghost{position:fixed; pointer-events:none; z-index:999;}
-.ghost-block{position:absolute; background:#fff; opacity:.85; border-radius:3px;}
+.ghost-block{position:absolute; opacity:.85; border-radius:3px;}
 #submit-btn{margin-top:18px;}
-@keyframes shake{ 20%,60%{transform:translateX(-3px);} 40%,80%{transform:translateX(3px);} }
-.tetris-grid.shake{animation:shake .25s ease-in-out;}
+@keyframes shake{ 25%{transform:translateX(-6px);} 50%{transform:translateX(6px);} 75%{transform:translateX(-6px);} 100%{transform:translateX(0);} }
+.tetris-grid.shake{animation:shake .6s ease-in-out;}
 .tetris-grid{transition:width .5s ease, height .5s ease;}
 .grid-cell{transition:opacity .3s ease;}
 .grid-cell.cell-hidden{opacity:0;}
@@ -70,6 +70,9 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
+.light-row{display:flex; align-items:center; justify-content:center; gap:16px;}
+.color-notch{width:56px; height:56px; border-radius:10px; border:3px dashed var(--panel2); background:var(--panel); opacity:0; pointer-events:none; transition:opacity .4s ease, background-color .8s ease;}
+.color-notch.visible{opacity:1; pointer-events:auto; cursor:grab;}
 </style>
 </head>
 <body>
@@ -108,12 +111,16 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   <div class="shelf" id="shelf"></div>
   <div id="puzzle1-info">
     <div class="mini-grid" id="heart-preview"></div>
+    <div class="mini-grid" id="color-preview" style="display:none;"></div>
   </div>
   <button id="skip-btn" class="big-btn" onclick="completePuzzle1(true)">Skip to next puzzle (test)</button>
 </div>
 
 <div id="screen-game2" class="screen">
-  <div class="light" id="light"></div>
+  <div class="light-row">
+    <div class="light" id="light"></div>
+    <div class="color-notch" id="color-notch"></div>
+  </div>
   <div class="hint">From shortest to tallest</div>
   <div id="puzzle2-section">
     <div class="tetris-tray" id="tetris-tray"></div>
@@ -157,7 +164,31 @@ const HEART_PATTERN = [
   [false,true, true, true, false],
   [false,false,true, false,false]
 ];
-const STAGE_PATTERNS = [HEART_PATTERN, null];
+const COLOR_PATTERN = [
+  [null,null,'white','white','white','white',null,null],
+  [null,null,'white',null,null,'white','white','white'],
+  [null,'blue','white',null,null,'white','white',null],
+  ['white','blue','white','white','white','white',null,null],
+  ['white','blue','blue','blue','blue','blue',null,null],
+  ['white','white','white','blue','blue',null,null,null],
+  ['white','white','white','blue','blue',null,null,null],
+  ['white','white','white','white','blue',null,null,null]
+];
+const STAGE_PATTERNS = [HEART_PATTERN, COLOR_PATTERN];
+function colorCategory(hex){
+  if(hex === '#ffffff') return 'white';
+  if(hex === C.blue) return 'blue';
+  return null;
+}
+function patternMatches(target){
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
+    const t = target[r][c];
+    const v = boardState[r][c];
+    if(typeof t === 'boolean'){ if(!!v !== t) return false; }
+    else if((v ? colorCategory(v) : null) !== t) return false;
+  }
+  return true;
+}
 
 let peer = null, conn = null, myRole = null;
 let ready = {1:false, 2:false};
@@ -210,6 +241,8 @@ function handleData(msg){
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
   else if(msg.type === 'press'){ if(myRole === 2) lightUp(msg.payload.color); }
   else if(msg.type === 'win'){ completePuzzle1(false); }
+  else if(msg.type === 'stage2'){ revealColorPattern(); }
+  else if(msg.type === 'finalwin'){ show('screen-win'); }
 }
 
 function pressReady(){
@@ -277,7 +310,8 @@ function checkProgress(color){
     progress = (puzzle.order[0] === color) ? [color] : [];
   }
 }
-function lightUp(color){ $('light').style.background = color; }
+let currentLightColor = null;
+function lightUp(color){ $('light').style.background = color; currentLightColor = color; }
 
 function completePuzzle1(broadcast){
   if(broadcast) send('win', {});
@@ -291,6 +325,23 @@ function revealHeart(){
 function unlockPuzzle2(){
   if(myRole !== 2) return;
   $('puzzle2-section').classList.add('visible');
+}
+function revealColorPattern(){
+  if(myRole !== 1) return;
+  $('heart-preview').style.display = 'none';
+  $('color-preview').style.display = 'grid';
+}
+function buildColorPreview(){
+  const el = $('color-preview');
+  el.style.gridTemplateColumns = `repeat(8, 14px)`;
+  el.style.gridTemplateRows = `repeat(8, 14px)`;
+  COLOR_PATTERN.forEach(row => row.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'mini-cell';
+    d.style.width = '14px'; d.style.height = '14px';
+    d.style.background = v === 'white' ? '#ffffff' : (v === 'blue' ? C.blue : '');
+    el.appendChild(d);
+  }));
 }
 function buildHeartPreview(){
   const el = $('heart-preview');
@@ -315,7 +366,7 @@ function gridPixelSize(size){ return size * CELL + (size - 1) * 2 + 8; }
 
 function buildGrid(size){
   gridSize = size;
-  boardState = Array.from({length:size}, () => Array(size).fill(false));
+  boardState = Array.from({length:size}, () => Array(size).fill(null));
   gridCellEls = [];
   const grid = $('tetris-grid');
   grid.innerHTML = '';
@@ -353,12 +404,22 @@ function buildTray(){
       b.style.width = TCELL + 'px'; b.style.height = TCELL + 'px';
       wrap.appendChild(b);
     });
-    wrap.addEventListener('mousedown', e => startDrag(e, offsets));
+    wrap.addEventListener('mousedown', e => beginDrag(e, offsets, '#ffffff', false));
     tray.appendChild(wrap);
+  });
+  $('color-notch').addEventListener('mousedown', e => {
+    if(!chargedPiece) return;
+    e.preventDefault();
+    const {offsets, color} = chargedPiece;
+    chargedPiece = null;
+    const notch = $('color-notch');
+    notch.style.background = '';
+    notch.classList.remove('charged');
+    beginDrag(e, offsets, color, true);
   });
 }
 
-function startDrag(e, offsets){
+function beginDrag(e, offsets, color, fromNotch){
   e.preventDefault();
   const maxR = Math.max(...offsets.map(o => o[0]));
   const maxC = Math.max(...offsets.map(o => o[1]));
@@ -371,10 +432,11 @@ function startDrag(e, offsets){
     b.className = 'ghost-block';
     b.style.left = (c * CELL) + 'px'; b.style.top = (r * CELL) + 'px';
     b.style.width = CELL + 'px'; b.style.height = CELL + 'px';
+    b.style.background = color;
     ghost.appendChild(b);
   });
   document.body.appendChild(ghost);
-  dragState = {offsets, ghost};
+  dragState = {offsets, color, fromNotch, ghost};
   positionGhost(e.clientX, e.clientY);
   updatePreview(e.clientX, e.clientY, offsets);
   document.addEventListener('mousemove', onDragMove);
@@ -407,33 +469,50 @@ function updatePreview(x, y, offsets){
     }
   });
 }
+function isOverNotch(x, y){
+  const notch = $('color-notch');
+  if(!notch.classList.contains('visible')) return false;
+  const r = notch.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+function chargeNotch(offsets){
+  chargedPiece = {offsets, color: currentLightColor || '#ffffff'};
+  const notch = $('color-notch');
+  notch.style.background = chargedPiece.color;
+  notch.classList.add('charged');
+}
 function onDragMove(e){ positionGhost(e.clientX, e.clientY); updatePreview(e.clientX, e.clientY, dragState.offsets); }
 function onDragUp(e){
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragUp);
-  tryPlace(e.clientX, e.clientY, dragState.offsets);
+  if(!dragState.fromNotch && isOverNotch(e.clientX, e.clientY)){
+    chargeNotch(dragState.offsets);
+  } else {
+    tryPlace(e.clientX, e.clientY, dragState.offsets, dragState.color);
+  }
   clearPreview();
   dragState.ghost.remove();
   dragState = null;
 }
-function tryPlace(x, y, offsets){
+function tryPlace(x, y, offsets, color){
   const cells = targetCells(x, y, offsets);
   if(!cells) return;
   const valid = cells.every(([r,c]) => r >= 0 && r < gridSize && c >= 0 && c < gridSize && !boardState[r][c]);
   if(!valid) return;
-  cells.forEach(([r,c]) => { boardState[r][c] = true; gridCellEls[r][c].classList.add('filled'); });
+  cells.forEach(([r,c]) => { boardState[r][c] = color; gridCellEls[r][c].style.background = color; gridCellEls[r][c].classList.add('filled'); });
 }
 
 function resetBoard(){
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
-    boardState[r][c] = false;
+    boardState[r][c] = null;
+    gridCellEls[r][c].style.background = '';
     gridCellEls[r][c].classList.remove('filled');
   }
 }
 function shakeGrid(){
   const grid = $('tetris-grid');
   grid.classList.add('shake');
-  setTimeout(() => grid.classList.remove('shake'), 400);
+  setTimeout(() => grid.classList.remove('shake'), 600);
 }
 function expandGridAnimated(newSize){
   const grid = $('tetris-grid');
@@ -454,18 +533,24 @@ function expandGridAnimated(newSize){
 }
 function submitPattern(){
   const target = STAGE_PATTERNS[stageIndex];
-  if(!target){ resetBoard(); return; }
-  let correct = true;
-  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
-    if(!!boardState[r][c] !== !!target[r][c]) correct = false;
+  if(!patternMatches(target)){ shakeGrid(); resetBoard(); return; }
+  if(stageIndex === 0){
+    stageIndex = 1;
+    expandGridAnimated(8);
+    $('color-notch').classList.add('visible');
+    send('stage2', {});
+    revealColorPattern();
+  } else {
+    send('finalwin', {});
+    show('screen-win');
   }
-  if(correct){ stageIndex++; expandGridAnimated(8); }
-  else { shakeGrid(); resetBoard(); }
 }
 
+let chargedPiece = null;
 buildGrid(5);
 buildTray();
 buildHeartPreview();
+buildColorPreview();
 </script>
 </body>
 </html>
