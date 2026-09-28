@@ -133,14 +133,23 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .rot-btn:active{transform:scale(0.93);}
 @keyframes rotGlow{ 0%,100%{box-shadow:0 0 0 3px rgba(61,220,151,.5), 0 0 10px 2px rgba(61,220,151,.35);} 50%{box-shadow:0 0 0 4px rgba(61,220,151,.95), 0 0 24px 8px rgba(61,220,151,.75);} }
 #rotate-shelf .rot-btn.glow{border-color:var(--accent2); animation:rotGlow 1.3s ease-in-out infinite;}
-.sp-finale{text-align:center; font-weight:900; font-size:1.7rem; letter-spacing:.3em; text-indent:.3em; color:#ff2d46; margin-bottom:6px; animation:finalePulse 1.4s ease-in-out infinite, finaleShake 3s linear infinite;}
-@keyframes finalePulse{ 0%,100%{text-shadow:0 0 6px rgba(255,45,70,.6), 0 0 14px rgba(255,45,70,.4); transform:scale(1);} 50%{text-shadow:0 0 12px rgba(255,45,70,1), 0 0 30px rgba(255,45,70,.8), 0 0 46px rgba(255,45,70,.5); transform:scale(1.08);} }
+.sp-finale{text-align:center; font-weight:900; font-size:1.7rem; letter-spacing:.3em; text-indent:.3em; color:#ff2d46; margin-bottom:6px; animation:finaleSoft 3.2s ease-in-out infinite;}
+@keyframes finaleSoft{ 0%,100%{text-shadow:0 0 4px rgba(255,45,70,.45), 0 0 10px rgba(255,45,70,.25); transform:scale(1);} 50%{text-shadow:0 0 7px rgba(255,45,70,.7), 0 0 16px rgba(255,45,70,.4); transform:scale(1.02);} }
+@keyframes finaleBoss{ 0%,100%{text-shadow:0 0 6px rgba(255,144,71,.6), 0 0 14px rgba(255,144,71,.4); transform:scale(1);} 50%{text-shadow:0 0 12px rgba(255,144,71,1), 0 0 30px rgba(255,144,71,.8), 0 0 46px rgba(255,144,71,.5); transform:scale(1.08);} }
 @keyframes finaleShake{ 0%,90%,100%{margin-left:0;} 92%{margin-left:-3px;} 94%{margin-left:3px;} 96%{margin-left:-2px;} 98%{margin-left:2px;} }
+.sp-finale.boss{color:#FF9047; animation:finaleBoss 1.4s ease-in-out infinite, finaleShake 3s linear infinite;}
+@keyframes spMsgIn{ 0%{opacity:0; transform:translateY(-8px);} 100%{opacity:1; transform:none;} }
+.sp-hp{display:none; width:100%; max-width:480px; height:12px; margin:0 auto 10px; border-radius:7px; background:rgba(0,0,0,.4); box-shadow:0 0 0 2px var(--panel2); overflow:hidden;}
+.sp-hp.on{display:block; animation:spMsgIn .6s ease-out both;}
+.sp-hp i{display:block; height:100%; width:100%; border-radius:7px; background:linear-gradient(90deg,#c9691f,#ffb347); transition:width .12s linear;}
+.sp-msg{display:none; text-align:center; font-weight:800; font-size:1.15rem; line-height:1.4; color:#FF9047; margin-top:12px; min-height:2.8em;}
+.sp-msg.on{display:block;}
+.sp-msg.swap{animation:spMsgIn .4s ease-out both;}
 .sp-title.orange{color:#FF9047;}
-@keyframes spWordIn{ 0%{opacity:0; transform:translateY(16px) scale(.3);} 55%{opacity:1; transform:translateY(-6px) scale(1.25); box-shadow:0 0 22px 4px rgba(61,220,151,.8);} 100%{opacity:1; transform:none; box-shadow:0 0 0 rgba(61,220,151,0);} }
-@keyframes spWordOut{ 0%{opacity:1; transform:none;} 30%{transform:translateY(-4px) scale(1.12); box-shadow:0 0 16px 3px rgba(255,255,255,.6);} 100%{opacity:0; transform:translateY(18px) scale(.2); box-shadow:none;} }
-.sp-word.in{animation:spWordIn .6s cubic-bezier(.2,.8,.3,1) both;}
-.sp-word.out{animation:spWordOut .5s ease-in forwards; pointer-events:none;}
+@keyframes spWordIn{ 0%{opacity:0; transform:translateY(6px);} 100%{opacity:1; transform:none;} }
+@keyframes spWordOut{ 0%{opacity:1; transform:none;} 100%{opacity:0; transform:translateY(-4px);} }
+.sp-word.in{animation:spWordIn .45s ease-out both;}
+.sp-word.out{animation:spWordOut .4s ease-in forwards; pointer-events:none;}
 .sp-title{text-align:center; font-weight:800; font-size:1.15rem; margin-bottom:12px;}
 .sp-words{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; min-height:38px;}
 .sp-word{padding:6px 14px; border-radius:8px; background:var(--panel2); color:var(--accent2); font-weight:800; letter-spacing:.15em; text-transform:uppercase;}
@@ -180,7 +189,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game1" class="screen">
-  <div id="space-section-1" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-title" id="sp-title-1">Say three 5-letter words to summon me!</div><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-1"></div></div></div>
+  <div id="space-section-1" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-hp" id="sp-hp-1"><i></i></div><div class="sp-title" id="sp-title-1">Say three 5-letter words to summon me!</div><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas><div class="sp-msg" id="sp-msg-1"></div><div class="sp-words" id="sp-words-1"></div></div></div>
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
   <div id="rotate-shelf" class="reveal"><div class="reveal-inner"><div>
@@ -202,7 +211,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game2" class="screen">
-  <div id="space-section-2" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-title" id="sp-title-2">Say three 5-letter words to summon me!</div><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-2"></div></div></div>
+  <div id="space-section-2" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-hp" id="sp-hp-2"><i></i></div><div class="sp-title" id="sp-title-2">Say three 5-letter words to summon me!</div><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas><div class="sp-msg" id="sp-msg-2"></div><div class="sp-words" id="sp-words-2"></div></div></div>
   <div class="light-row">
     <div class="light" id="light"></div>
   </div>
@@ -1159,36 +1168,41 @@ const SP_MSG = [
   "So you've chosen death...",
   "You really did choose death, want another one?",
   "The 2 for 1 special, killing you for free!",
-  "Hey, when I said it was free deaths, I didn't mean three deaths",
+  "When I said free deaths, I didn't mean three deaths",
   "Another death four you, get it?",
   "You need a hand? Can't count past 5 with just one",
-  "You have two hands to count 6 deaths? Doesn't look like it",
-  "What was I saying? You guys should have 4 hands, 0 useful ones",
+  "Wait, you have two hands? Doesn't look like it",
+  "Nevermind, you guys have 4 hands, 0 useful ones",
   "8 deaths? I'll flip that number 90 degrees",
-  "I hoping you're not a cat right now",
+  "I'm hoping you're not a cat right now",
   "Have you tried 10? Oh wait, yes you did",
   "Unlike an easy skeleton, I can count past 10",
   "You know what they say, 13th time is the charm",
-  () => 'You\'ve been here for ' + $('game-timer').textContent + ', please forfeit',
+  () => 'You\'ve been here for ' + $('game-timer').textContent + ', please give up',
   "14 me, 0 you two",
   "A new milestone! 3 full hands!",
-  "16? With that age, consider a driver's license for this ship",
-  "You've died so many times that there's nothing creative to say about 17",
+  "16? With that age consider a driver's license for this ship",
+  "So many deaths that there's nothing to say about 17",
   "18? Can we send you to jail now?",
   "Just one more death and we hit the big 20",
-  "LET'S GO! A death for each finger you can't use properly!",
+  "Let's go! A death for every finger being used to fail!",
   "Ngl, I'm kinda tired of counting too, I get you Sans",
   "Let's just say... 22 deaths"
 ];
 function spTitle(id, s){
-  const el = $('sp-title-' + id); if(!el) return;
-  let t = 'Say three 5-letter words to summon me!', o = false;
-  if(s.boss){
-    const d = s.deaths || 0, m = SP_MSG[d];
-    t = m === undefined ? d + ' deaths' : (typeof m === 'function' ? m() : m); o = true;
-  }
-  if(el.textContent !== t) el.textContent = t;
-  el.classList.toggle('orange', o);
+  const fin = document.querySelector('#space-section-' + id + ' .sp-finale'), ti = $('sp-title-' + id), hp = $('sp-hp-' + id), msg = $('sp-msg-' + id);
+  if(!ti || !hp || !msg) return;
+  const b = !!s.boss;
+  if(fin){ const t = b ? 'NICRAFTIN' : 'THE FINALE'; if(fin.textContent !== t) fin.textContent = t; fin.classList.toggle('boss', b); }
+  ti.style.display = b ? 'none' : '';
+  hp.classList.toggle('on', b); msg.classList.toggle('on', b);
+  if(!b) return;
+  const p = s.pud, w = p ? Math.max(0, p.hp / p.max * 100) : 100;
+  if(hp._w !== w){ hp._w = w; hp.firstChild.style.width = w + '%'; }
+  const d = s.deaths || 0, m = SP_MSG[d];
+  const t = m === undefined ? d + ' deaths' : (typeof m === 'function' ? m() : m);
+  if(msg.textContent !== t) msg.textContent = t;
+  if(msg._k !== d){ msg._k = d; msg.classList.remove('swap'); void msg.offsetWidth; msg.classList.add('swap'); }
 }
 function spBubble(g, s){
   const b = s.bubble; if(!b) return;
@@ -1215,6 +1229,35 @@ function spBubble(g, s){
   });
   g.textBaseline = 'alphabetic';
 }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 100, max: 100, age: 0, flash: 0, dead: -1}; }
+function spPudStep(p, dt){
+  if(!p) return;
+  p.age += dt; if(p.flash > 0) p.flash -= dt;
+  if(p.dead >= 0) p.dead += dt; else p.y = -60 + (p.ty + 60) * spEase(Math.min(1, p.age / 2.8));
+}
+function spPudDraw(g, p, ship, T){
+  if(p.dead > 1) return;
+  const dd = p.dead >= 0, k = dd ? Math.min(1, p.dead) : 0;
+  g.save(); g.translate(p.x, p.y + Math.sin(T * 1.7) * 3);
+  if(dd){
+    g.strokeStyle = '#e08a2b'; g.lineWidth = 3; g.globalAlpha = 1 - k;
+    for(let i = 0; i < 12; i++){ const an = i * Math.PI / 6, d = k * 90; g.beginPath(); g.moveTo(Math.cos(an) * d * .6, Math.sin(an) * d * .6); g.lineTo(Math.cos(an) * d, Math.sin(an) * d); g.stroke(); }
+    g.scale(1 + k * .3, 1 - k * .3);
+  }
+  const w = Math.sin(T * 2.6) * .04; g.scale(1 + w, 1 - w); g.rotate(Math.sin(T * 1.3) * .03);
+  const body = () => { g.beginPath(); g.moveTo(-36, 22); g.lineTo(-30, -12); g.quadraticCurveTo(0, -24, 30, -12); g.lineTo(36, 22); g.quadraticCurveTo(0, 32, -36, 22); g.closePath(); };
+  g.fillStyle = '#eef0f6'; g.beginPath(); g.ellipse(0, 26, 48, 9, 0, 0, Math.PI * 2); g.fill();
+  const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#e3ad45'); bg.addColorStop(.45, '#fbe3a0'); bg.addColorStop(1, '#dea23c');
+  body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
+  if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
+  g.beginPath(); g.moveTo(-30, -12); g.quadraticCurveTo(0, -24, 30, -12); g.lineTo(30, -6); g.quadraticCurveTo(26, 4, 22, -6); g.lineTo(14, -8); g.quadraticCurveTo(10, 12, 6, -8); g.lineTo(-4, -9); g.quadraticCurveTo(-8, 0, -12, -9); g.lineTo(-20, -9); g.quadraticCurveTo(-24, 10, -28, -8); g.closePath();
+  g.fillStyle = '#a5541a'; g.fill();
+  g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -16, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
+  const bl = (T % 3.3) < .12 ? .15 : 1, ax = Math.atan2(ship.y - p.y, ship.x - p.x), ex = Math.cos(ax) * 2, ey = Math.sin(ax) * 2;
+  g.fillStyle = '#fff'; g.beginPath(); g.ellipse(-9, 12, 4.2, 4.2 * bl, 0, 0, Math.PI * 2); g.ellipse(9, 12, 4.2, 4.2 * bl, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#000'; g.beginPath(); g.ellipse(-9 + ex, 12 + ey, 2.2, 2.2 * bl, 0, 0, Math.PI * 2); g.ellipse(9 + ex, 12 + ey, 2.2, 2.2 * bl, 0, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color, boss){
   return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null, deaths:0, leaving:false};
@@ -1240,8 +1283,8 @@ function spEvent(){
 function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
-    s.dying.t += dt;
-    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss) n.bossT = 99; sp = n; }
+    s.dying.t += dt; spPudStep(s.pud, dt);
+    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; n.pud = s.pud; if(s.boss) n.bossT = 99; sp = n; }
     return;
   }
   if(s.bubble){
@@ -1261,6 +1304,7 @@ function spStep(dt){
     b.x += b.vx * dt; b.y += b.vy * dt;
     for(const e of s.statics) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
     for(const e of s.movers) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
+    const P = s.pud; if(P && P.dead < 0 && !b.hit && Math.hypot(b.x - P.x, b.y - P.y) < 37){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
   }
   s.bullets = s.bullets.filter(b => !b.hit && b.x > -10 && b.x < SP_W + 10 && b.y > -10 && b.y < SP_H + 10);
   s.statics = s.statics.filter(e => !e.dead);
@@ -1272,6 +1316,7 @@ function spStep(dt){
     if(m.y < m.r){ m.y = m.r; m.vy = Math.abs(m.vy); m.bt = 0; m.bax = 'y'; } else if(m.y > SP_H - m.r){ m.y = SP_H - m.r; m.vy = -Math.abs(m.vy); m.bt = 0; m.bax = 'y'; }
   }
   s.t += dt; if(s.bossT !== undefined) s.bossT += dt;
+  spPudStep(s.pud, dt);
   if(s.t >= s.next){ s.next += 10; spEvent(); }
   for(const e of s.statics){ e.ch += dt; e.age += dt; }
   for(const l of s.lasers) l.t += dt;
@@ -1283,6 +1328,7 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
+  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 43) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss) s.deaths++; }
 }
 function spDraw(g, s){
@@ -1293,6 +1339,7 @@ function spDraw(g, s){
   spShowWords(g.canvas.id.slice(-1), s.words || [], !!(s.dying || s.leaving));
   spTitle(g.canvas.id.slice(-1), s);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
+  if(s.pud) spPudDraw(g, s.pud, s.ship, T);
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
     const hw = SP_LW / 2, R = l.v ? [-hw, -H / 2, 2 * hw, H] : [-W / 2, -hw, W, 2 * hw];
     if(l.t < 5){
@@ -1426,7 +1473,7 @@ function spBossStart(){
   $('skip-btn').style.display = 'none';
   const old = sp.ship, n = spFresh(old.c, true);
   Object.assign(n.ship, {x: old.x, y: old.y, a: old.a, cd: old.cd, mv: old.mv});
-  n.bossT = 0; sp = n;
+  n.bossT = 0; n.pud = spPud(); sp = n;
 }
 function startSpace(){
   if(spStarted) return;
