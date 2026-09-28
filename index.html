@@ -161,11 +161,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #game-timer.fin{color:#fff; padding:10px 26px; border-radius:16px; transition:top 3.2s cubic-bezier(.65,0,.35,1), transform 3.2s cubic-bezier(.65,0,.35,1), font-size 3.2s cubic-bezier(.65,0,.35,1), padding 3.2s ease;}
 @keyframes finGlow{ 0%,100%{text-shadow:0 0 12px #3ddc97, 0 0 30px rgba(61,220,151,.8), 0 0 60px rgba(61,220,151,.5); box-shadow:0 0 30px rgba(61,220,151,.35);} 50%{text-shadow:0 0 18px #7dffc4, 0 0 44px rgba(61,220,151,1), 0 0 90px rgba(61,220,151,.7); box-shadow:0 0 60px rgba(61,220,151,.6);} }
 #game-timer.fin.done{color:#3ddc97; background:rgba(0,0,0,.55); transition:font-size 1.2s ease-out, color .8s ease, background .8s ease; animation:finGlow 2.2s ease-in-out infinite;}
-#fin-msg{position:fixed; left:50%; bottom:calc(58% + 90px); transform:translateX(-50%); width:92vw; max-width:900px; text-align:center; font-weight:800; font-size:min(2.4rem,7.5vw); color:#3ddc97; text-shadow:0 0 18px rgba(61,220,151,.6); opacity:0; transition:opacity 2s ease; z-index:55; pointer-events:none;}
+#fin-msg{position:fixed; left:50%; bottom:calc(58% + 160px); transform:translateX(-50%); width:92vw; max-width:900px; text-align:center; font-weight:800; font-size:min(2.4rem,7.5vw); color:#3ddc97; text-shadow:0 0 18px rgba(61,220,151,.6); opacity:0; transition:opacity 2.8s ease; z-index:55; pointer-events:none;}
 #fin-msg.on{opacity:1;}
 #fin-btn{position:fixed; left:0; top:0; z-index:60; padding:16px 28px; border-radius:16px; border:none; background:var(--danger); color:#fff; cursor:pointer; font-weight:800; font-size:1.1rem; display:flex; flex-direction:column; gap:4px; align-items:center; opacity:0; transition:opacity 1s ease; touch-action:manipulation; user-select:none; -webkit-user-select:none; box-shadow:0 6px 24px rgba(255,92,114,.45); will-change:transform;}
 #fin-btn small{font-size:.9rem; font-weight:700; opacity:.9; font-family:ui-monospace,Menlo,Consolas,monospace;}
 #fin-btn.on{opacity:1;}
+#fin-count{position:fixed; left:50%; transform:translateX(-50%); z-index:55; color:#fff; opacity:0; transition:opacity 1s ease; pointer-events:none; font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; font-size:1.05rem; text-shadow:0 0 10px rgba(255,92,114,.6);}
+#fin-count.on{opacity:.9;}
+.fin-shard{position:fixed; left:0; top:0; width:10px; height:10px; border-radius:3px; background:var(--danger); z-index:65; pointer-events:none;}
 </style>
 </head>
 <body>
@@ -1244,6 +1247,11 @@ function spBubble(g, s){
   g.textBaseline = 'alphabetic';
 }
 function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null}; }
+// Boss hit shape: the sprite's visible body is short on top and round-ish on the bottom, so the top is much tighter than the old 111px circle
+function spPudHit(p, x, y, pad){
+  const dx = x - p.x, dy = y - p.y, rx = 110 + pad, ry = (dy < 0 ? 62 : 88) + pad;
+  return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) < 1;
+}
 function spPudStep(p, dt){
   if(!p) return;
   if(p.flee){ p.flee.t += dt; p.x += p.flee.vx * dt; p.y += p.flee.vy * dt; p.flee.vx *= 1.05; p.flee.vy *= 1.05; return; }
@@ -1291,20 +1299,30 @@ function spFresh(color, boss){
 }
 function spEvent(){
   const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
+  const half = !!(s.pud && s.pud.dead < 0 && s.pud.hp <= s.pud.max / 2); // boss phase 2
   if(k === 0){
     let x, y, n = 0;
     do{ x = 30 + Math.random() * (SP_W - 60); y = 30 + Math.random() * (SP_H - 60); }while(Math.hypot(x - sh.x, y - sh.y) < 100 && ++n < 100);
-    s.statics.push({x, y, r:18, ch:0, age:0});
+    const e = {x, y, r:18, ch:0, age:0};
+    if(half){ e.vx = (Math.random() < .5 ? -1 : 1) * 60; e.vy = (Math.random() < .5 ? -1 : 1) * 45; } // bounces around like the dvd logo
+    s.statics.push(e);
   }else if(k === 1){
-    const v = Math.random() < .5, base = v ? sh.x : sh.y;
-    s.lasers.push({v, p: Math.max(20, Math.min(SP_W - 20, base + (Math.random() - .5) * 80)), t:0});
+    const v = Math.random() < .5;
+    if(half){ // 5 lasers spread across the whole arena
+      for(let i = 0; i < 5; i++) s.lasers.push({v, p: (i + .5) * SP_W / 5 + (Math.random() - .5) * 16, t:0});
+    }else{
+      const base = v ? sh.x : sh.y;
+      s.lasers.push({v, p: Math.max(20, Math.min(SP_W - 20, base + (Math.random() - .5) * 80)), t:0});
+    }
   }else if(k === 2){
     const cols = Object.values(C);
     s.flashes.push({c: cols[Math.floor(Math.random() * cols.length)], t:0});
   }else{
-    let x, y, n = 0;
-    do{ x = 14 + Math.random() * (SP_W - 28); y = 14 + Math.random() * (SP_H - 28); }while(Math.hypot(x - sh.x, y - sh.y) < 250 && ++n < 200);
-    s.movers.push({x, y, vx:(Math.random() < .5 ? -1 : 1) * 60, vy:(Math.random() < .5 ? -1 : 1) * 45, r:14, age:0, bt:9, bax:'x'});
+    for(let i = 0; i < (half ? 3 : 1); i++){
+      let x, y, n = 0;
+      do{ x = 14 + Math.random() * (SP_W - 28); y = 14 + Math.random() * (SP_H - 28); }while(Math.hypot(x - sh.x, y - sh.y) < 250 && ++n < 200);
+      s.movers.push({x, y, vx:(Math.random() < .5 ? -1 : 1) * 60, vy:(Math.random() < .5 ? -1 : 1) * 45, r:14, age:0, bt:9, bax:'x'});
+    }
   }
 }
 function spStep(dt){
@@ -1331,7 +1349,7 @@ function spStep(dt){
     b.x += b.vx * dt; b.y += b.vy * dt;
     for(const e of s.statics) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
     for(const e of s.movers) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
-    const P = s.pud; if(P && P.dead < 0 && !b.hit && Math.hypot(b.x - P.x, b.y - P.y) < 111){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
+    const P = s.pud; if(P && P.dead < 0 && !b.hit && spPudHit(P, b.x, b.y, 3)){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
   }
   s.bullets = s.bullets.filter(b => !b.hit && b.x > -10 && b.x < SP_W + 10 && b.y > -10 && b.y < SP_H + 10);
   s.statics = s.statics.filter(e => !e.dead);
@@ -1345,7 +1363,14 @@ function spStep(dt){
   s.t += dt; if(s.bossT !== undefined) s.bossT += dt;
   spPudStep(s.pud, dt);
   if(s.t >= s.next){ s.next += 10; spEvent(); }
-  for(const e of s.statics){ e.ch += dt; e.age += dt; }
+  for(const e of s.statics){
+    e.ch += dt; e.age += dt;
+    if(e.vx !== undefined){ // phase-2 chargers bounce like the dvd logo
+      const R = 28; e.x += e.vx * dt; e.y += e.vy * dt;
+      if(e.x < R){ e.x = R; e.vx = Math.abs(e.vx); } else if(e.x > SP_W - R){ e.x = SP_W - R; e.vx = -Math.abs(e.vx); }
+      if(e.y < R){ e.y = R; e.vy = Math.abs(e.vy); } else if(e.y > SP_H - R){ e.y = SP_H - R; e.vy = -Math.abs(e.vy); }
+    }
+  }
   for(const l of s.lasers) l.t += dt;
   for(const f of s.flashes) f.t += dt;
   s.lasers = s.lasers.filter(l => l.t < 5.6);
@@ -1356,7 +1381,7 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
-  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 112) cause = 'pudding';
+  if(s.pud && s.pud.dead < 0 && spPudHit(s.pud, sh.x, sh.y, 9)) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0 && !s.pud.flee){ const fa = Math.atan2(s.pud.y - SP_H / 2, s.pud.x - SP_W / 2) || (Math.random() * Math.PI * 2); s.pud.flee = {t:0, vx: Math.cos(fa) * 240, vy: Math.sin(fa) * 240}; } } send('spdeath', {}); }
 }
 function spDraw(g, s){
@@ -1537,17 +1562,19 @@ function startFinale(){
     setTimeout(finShowButton, 3600);
   }, end + 300);
 }
-function finText(){ const n = $('fin-n'); if(n) n.textContent = finN + ' remaining'; }
+function finText(){ const n = $('fin-count'); if(n) n.textContent = finN + ' remaining'; }
 function finShowButton(){
   if(finDone) return;
   const b = document.createElement('button'); b.id = 'fin-btn';
-  b.innerHTML = '<span>Stop the timer</span><small id="fin-n"></small>';
-  document.body.appendChild(b); finBtn = b; finText();
+  b.innerHTML = '<span>Stop the timer</span>';
+  document.body.appendChild(b); finBtn = b;
+  const cnt = document.createElement('div'); cnt.id = 'fin-count'; document.body.appendChild(cnt); finText();
   const tr = $('game-timer').getBoundingClientRect();
-  finX = (innerWidth - b.offsetWidth) / 2; finY = Math.max(0, Math.min(innerHeight - b.offsetHeight - 10, tr.bottom + 36));
+  finX = (innerWidth - b.offsetWidth) / 2; finY = Math.max(0, Math.min(innerHeight - b.offsetHeight - 10, tr.bottom + 64));
+  cnt.style.top = (tr.bottom + 12) + 'px';
   b.style.transform = `translate(${finX}px,${finY}px)`;
   b.addEventListener('pointerdown', e => { e.preventDefault(); finClick(); });
-  requestAnimationFrame(() => b.classList.add('on'));
+  requestAnimationFrame(() => { b.classList.add('on'); cnt.classList.add('on'); });
   finLast = performance.now(); requestAnimationFrame(finLoop);
 }
 function finLoop(now){
@@ -1567,13 +1594,42 @@ function finLoop(now){
 function finClick(){ if(finDone || finN <= 0) return; if(myRole === 1) finApply(finN - 1); else send('finclick', {}); }
 function finApply(n){ if(finDone) return; const ms = n <= 0 ? performance.now() - gameT0 : 0; send('finn', {n, ms}); finSet(n, ms); }
 function finSet(n, ms){ if(n > finN) return; finN = n; finText(); if(n <= 0) finWin(ms); }
+function finVanish(){
+  const b = finBtn, c = $('fin-count'); finBtn = null;
+  if(c){ c.style.opacity = 0; setTimeout(() => c.remove(), 1100); }
+  if(!b) return;
+  b.style.pointerEvents = 'none';
+  const r = b.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const K = (dx, dy, rot, sc) => `translate(${finX + dx}px,${finY + dy}px) rotate(${rot}deg) scale(${sc})`;
+  const dx = (Math.random() - .5) * 700, dy = 700 + Math.random() * 500, rot = (Math.random() - .5) * 140;
+  b.animate([
+    {transform:K(0,0,0,1), opacity:1},
+    {transform:K(-6,3,-1,1.03), opacity:1, offset:.08},
+    {transform:K(6,-3,1,1.05), opacity:1, offset:.16},
+    {transform:K(-5,-2,-1,1.07), opacity:1, offset:.24},
+    {transform:K(5,2,1,1.14), opacity:1, offset:.32, easing:'ease-in'},
+    {transform:K(dx,dy,rot,.7), opacity:0}
+  ], {duration:1700, easing:'linear', fill:'both'}).onfinish = () => b.remove();
+  setTimeout(() => {
+    const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
+    flash.animate([{opacity:0}, {opacity:.7, offset:.15}, {opacity:0}], {duration:800, easing:'ease-out'}).onfinish = () => flash.remove();
+    for(let i = 0; i < 16; i++){
+      const s = document.createElement('div'); s.className = 'fin-shard'; document.body.appendChild(s);
+      const an = i / 16 * Math.PI * 2 + Math.random() * .3, d = 120 + Math.random() * 160;
+      s.animate([
+        {transform:`translate(${cx - 5}px,${cy - 5}px) scale(1)`, opacity:1},
+        {transform:`translate(${cx - 5 + Math.cos(an) * d}px,${cy - 5 + Math.sin(an) * d}px) scale(.2) rotate(${Math.random() * 360}deg)`, opacity:0}
+      ], {duration:800 + Math.random() * 300, easing:'cubic-bezier(.2,.7,.3,1)', fill:'forwards'}).onfinish = () => s.remove();
+    }
+  }, 500);
+}
 function finWin(ms){
   if(finDone) return; finDone = true; timerStop = ms;
-  if(finBtn){ finBtn.remove(); finBtn = null; }
+  finVanish();
   const t = $('game-timer'); t.textContent = fmtTime(ms);
   t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
   const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
-  setTimeout(() => m.classList.add('on'), 700);
+  setTimeout(() => m.classList.add('on'), 2600);
 }
 function startSpace(){
   if(spStarted) return;
