@@ -172,7 +172,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #fin-btn.on{opacity:1;}
 #fin-count{position:fixed; left:50%; transform:translateX(-50%); z-index:55; color:#fff; opacity:0; transition:opacity 1s ease; pointer-events:none; font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; font-size:1.05rem; text-shadow:0 0 10px rgba(255,92,114,.6);}
 #fin-count.on{opacity:.9;}
-#fin-return{position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:60; padding:14px 32px; border-radius:14px; border:none; background:var(--accent); color:#fff; font-size:1.1rem; font-weight:600; cursor:pointer; opacity:0; transition:opacity 1.2s ease;}
+#fin-return{position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:60; padding:14px 32px; border-radius:14px; border:none; background:#6b7280; color:#fff; font-size:1.1rem; font-weight:600; cursor:pointer; opacity:0; transition:opacity 1.2s ease;}
 #fin-return.on{opacity:1;}
 .fin-shard{position:fixed; left:0; top:0; width:10px; height:10px; border-radius:3px; background:var(--danger); z-index:65; pointer-events:none;}
 </style>
@@ -1386,7 +1386,12 @@ function spTitle(id, s){
   ti.style.display = b ? 'none' : '';
   hp.classList.toggle('on', b); msg.classList.toggle('on', b);
   if(!b) return;
-  const p = s.pud, w = p ? Math.max(0, p.hp / p.max * 100) : 100;
+  const p = s.pud; let w = 100;
+  if(p){ // bar covers one third of the boss's health at a time: it empties at each threshold, then refills as the boss gets angry
+    const seg = p.max / 3, lower = (2 - p.ph) * seg;
+    w = Math.max(0, Math.min(1, (p.hp - lower) / seg)) * 100;
+    if(p.anger >= 0 && p.anger < .6 && p.hp > 0) w = 0;
+  }
   if(hp._w !== w){ hp.classList.toggle('filling', w > (hp._w || 0)); hp._w = w; hp.firstChild.style.width = w + '%'; }
   const d = s.deaths || 0, m = SP_MSG[d];
   const t = m === undefined ? d + ' deaths' : (typeof m === 'function' ? m() : m);
@@ -1905,9 +1910,9 @@ function finWin(ms){
   const t = $('game-timer'); t.textContent = fmtTime(ms);
   t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
   const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
-  setTimeout(() => m.classList.add('on'), 2600);
-  const cr = document.createElement('div'); cr.id = 'fin-credit'; cr.innerHTML = 'A game made by Nicraftin in 2 days<br>Thank you for playing!'; document.body.appendChild(cr);
-  setTimeout(() => { cr.style.top = ($('game-timer').getBoundingClientRect().bottom + 28) + 'px'; cr.classList.add('on'); }, 2600);
+  setTimeout(() => { const GAP = 64, tr = $('game-timer').getBoundingClientRect(); m.style.bottom = 'auto'; m.style.top = (tr.top - GAP - m.offsetHeight) + 'px'; m.classList.add('on'); }, 2600);
+  const cr = document.createElement('div'); cr.id = 'fin-credit'; cr.innerHTML = 'A game made by Nicraftin in 2 days<br>Thank you for playing!<br><br><span style="font-size:1.4em; color:#fff; line-height:1;">&#9829;</span>'; document.body.appendChild(cr);
+  setTimeout(() => { cr.style.top = ($('game-timer').getBoundingClientRect().bottom + 64) + 'px'; cr.classList.add('on'); }, 2600);
   const rb = document.createElement('button'); rb.id = 'fin-return'; rb.textContent = 'Return'; rb.onclick = () => location.reload(); document.body.appendChild(rb);
   setTimeout(() => rb.classList.add('on'), 2600);
 }
