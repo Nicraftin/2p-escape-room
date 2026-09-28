@@ -178,7 +178,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <body>
 
 <div id="screen-choose" class="screen active">
-  <div class="row" style="margin-top:20px;">
+  <div class="row" id="role-row" style="margin-top:20px;">
     <button class="role-btn" onclick="startHost()">Player 1<br><small>(hosts)</small></button>
     <button class="role-btn" onclick="showJoin()">Player 2<br><small>(joins)</small></button>
   </div>
@@ -186,7 +186,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
     <div><input id="code-in" class="code-input" maxlength="4" placeholder="CODE"></div>
     <button class="big-btn" onclick="startJoin()">Connect</button>
   </div>
-  <button class="big-btn" style="margin-top:20px;" onclick="showRc()">Reconnect</button>
+  <button class="big-btn" id="rc-open-btn" style="margin-top:20px;" onclick="showRc()">Reconnect</button>
   <div id="rc-box" style="display:none; margin-top:20px;">
     <div><input id="rc-in" class="code-input" maxlength="4" placeholder="CODE"></div>
     <button class="big-btn" onclick="doRejoin($('rc-in').value, $('connect-err'))">Connect</button>
@@ -354,7 +354,8 @@ function attemptHost(){
   });
 }
 
-function showJoin(){ $('join-box').style.display = 'block'; }
+function hideChoices(){ $('role-row').style.display = 'none'; $('rc-open-btn').style.display = 'none'; }
+function showJoin(){ hideChoices(); $('join-box').style.display = 'block'; }
 function startJoin(){
   const code = $('code-in').value.trim().toUpperCase();
   if(code.length !== 4){ $('connect-err').textContent = 'Enter the 4-character code.'; return; }
@@ -431,12 +432,7 @@ function listenRejoin(){
   peer.on('connection', c => c.on('data', m => {
     if(c === conn){ rx(m); return; }
     if(m.type !== 'rejoin') return;
-    const p = m.payload, theirs = 3 - myRole;
-    let bad = null;
-    if(p.role && p.role !== theirs) bad = 'Wrong lobby.';
-    else if(started && !(p.inGame && p.role === theirs)) bad = 'This game can only be rejoined from the original tab.';
-    else if(!started && p.inGame) bad = 'Wrong lobby.';
-    if(bad){ c.send({type:'rejoinfail', payload:{reason:bad}}); setTimeout(() => c.close(), 300); return; }
+    const theirs = 3 - myRole;
     conn = c;
     if(!started) ready[theirs] = false;
     c.send({type:'rejoinok', payload:{role:myRole}});
@@ -444,7 +440,7 @@ function listenRejoin(){
     resume();
   }));
 }
-function showRc(){ $('rc-box').style.display = 'block'; }
+function showRc(){ hideChoices(); $('rc-box').style.display = 'block'; }
 function doRejoin(code, errEl){
   code = code.trim().toUpperCase();
   if(code.length !== 4){ errEl.textContent = 'Enter the 4-character code.'; return; }
@@ -464,7 +460,7 @@ function doRejoin(code, errEl){
       else if(m.type === 'rejoinok'){
         clearTimeout(to); done = true;
         conn = c;
-        if(myRole === null){ myRole = 3 - m.payload.role; show('screen-ready'); $('ready-btn').disabled = false; }
+        const fresh = myRole === null; myRole = 3 - m.payload.role; if(fresh){ show('screen-ready'); $('ready-btn').disabled = false; }
         watchConn(c);
         resume();
       }
