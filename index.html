@@ -67,8 +67,9 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .tetris-grid.shake{animation:shake .6s ease-in-out;}
 .grid-cell{transition:opacity .3s ease;}
 .grid-cell.cell-hidden{opacity:0;}
-@keyframes wrongClear{ 30%{background:var(--danger); transform:scale(1);} 100%{background:var(--danger); transform:scale(.4); opacity:0;} }
-.grid-cell.wrong-fade{animation:wrongClear .6s ease-in forwards;}
+@keyframes wrongClear{ 0%{background:var(--fill,#fff);} 30%{background:var(--danger); transform:scale(1);} 100%{background:var(--danger); transform:scale(.4); opacity:0;} }
+.grid-cell.wrong-fade{background:var(--panel) !important; position:relative;}
+.grid-cell.wrong-fade::after{content:''; position:absolute; inset:0; border-radius:2px; animation:wrongClear .6s ease-in forwards;}
 @keyframes greenFlash{ 0%,50%,100%{background:var(--panel2); box-shadow:none;} 20%,70%{background:var(--accent2); box-shadow:0 0 22px 4px rgba(61,220,151,.7);} }
 .tetris-grid.flash-green{animation:greenFlash 1s ease-in-out;}
 #puzzle1-info{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
@@ -82,6 +83,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #stage2-row.visible{max-height:200px; opacity:1; margin-top:24px;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
+#p2-old{max-height:1200px; overflow:hidden; transition:max-height .6s ease, opacity .6s ease;}
+#p2-old.collapsed{max-height:0; opacity:0;}
+#puzzle3-section{max-height:0; opacity:0; overflow:hidden; transition:max-height .6s ease, opacity .6s ease;}
+#puzzle3-section.visible{max-height:400px; opacity:1;}
+.maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
+.maze{position:relative; width:264px; height:264px; background:var(--panel); flex:none;}
+.maze .wall{position:absolute; background:var(--sub); border-radius:1px;}
+.maze .hole{position:absolute; width:22px; height:22px; border-radius:50%; background:#000; box-shadow:0 0 0 3px var(--accent2), 0 0 14px 2px rgba(61,220,151,.6);}
+.maze .ball{position:absolute; width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff,var(--accent) 70%); box-shadow:0 2px 4px rgba(0,0,0,.4);}
+#rotate-shelf{max-height:0; opacity:0; overflow:hidden; margin-top:0; padding-top:0; padding-bottom:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease, padding .6s ease;}
+#rotate-shelf.visible{max-height:140px; opacity:1; margin-top:24px; padding:20px;}
+.rot-btn{width:56px; height:56px; border-radius:50%; border:3px solid var(--panel2); background:var(--panel2); color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center;}
+.rot-btn:active{transform:scale(0.93);}
 </style>
 </head>
 <body>
@@ -117,6 +131,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <div id="screen-game1" class="screen">
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
+  <div class="shelf" id="rotate-shelf">
+    <button class="rot-btn" onclick="send('rotate',{dir:-1})" aria-label="Rotate counterclockwise"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+    <button class="rot-btn" onclick="send('rotate',{dir:1})" aria-label="Rotate clockwise"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+  </div>
   <div id="puzzle1-info">
     <div class="info-row">
       <div class="mini-grid" id="heart-preview"></div>
@@ -131,6 +149,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game2" class="screen">
+  <div id="p2-old">
   <div class="light-row">
     <div class="light" id="light"></div>
   </div>
@@ -140,6 +159,8 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
     <div class="tetris-grid" id="tetris-grid"></div>
     <button class="big-btn" id="submit-btn" onclick="submitPattern()">Submit</button>
   </div>
+  </div>
+  <div id="puzzle3-section"><div class="maze-stage"><div class="maze" id="maze"></div></div></div>
 </div>
 
 <div id="screen-win" class="screen">
@@ -256,6 +277,8 @@ function handleData(msg){
   else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board, msg.payload.stage); }
   else if(msg.type === 'lightblock'){ setShelfBlocked(msg.payload.blocked); }
   else if(msg.type === 'skiptetris1'){ if(myRole === 2){ advanceToColorStage(); send('stage2', {}); } }
+  else if(msg.type === 'rotate'){ if(myRole === 2 && mz && mzActive) mz.t += msg.payload.dir * 90; }
+  else if(msg.type === 'level3'){ if(myRole === 1) $('rotate-shelf').classList.add('visible'); }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
 }
 
@@ -621,7 +644,7 @@ function submitPattern(){
   boardLocked = true;
   if(!patternMatches(STAGE_PATTERNS[stage])){
     shakeGrid();
-    document.querySelectorAll('.grid-cell.filled').forEach(c => c.classList.add('wrong-fade'));
+    document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add('wrong-fade'); });
     setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
     return;
   }
@@ -633,11 +656,119 @@ function submitPattern(){
       advanceToColorStage();
       send('stage2', {});
     } else {
-      send('finalwin', {});
-      show('screen-win');
+      send('level3', {});
+      startLevel3();
     }
     boardLocked = false;
   }, 1050);
+}
+
+// --- Level 3: tilt maze ---
+const MS = 44, MN = 6, MR = 8, MT = 4, DT = 1/120, MG = 900;
+let mazeRects = [], mz = null, mzExit = null, mzActive = false, mzLast = 0, mzAcc = 0, ballEl = null;
+function mazeStep(s){
+  if(s.a !== s.t){ const d = s.t - s.a, st = 300 * DT; s.a = Math.abs(d) <= st ? s.t : s.a + Math.sign(d) * st; }
+  const r = s.a * Math.PI / 180;
+  s.vx += MG * Math.sin(r) * DT; s.vy += MG * Math.cos(r) * DT;
+  const k = 1 - 1.2 * DT; s.vx *= k; s.vy *= k;
+  const sp = Math.hypot(s.vx, s.vy); if(sp > 400){ s.vx *= 400 / sp; s.vy *= 400 / sp; }
+  s.x += s.vx * DT; s.y += s.vy * DT;
+  for(const [x0,y0,x1,y1] of mazeRects){
+    const cx = Math.max(x0, Math.min(s.x, x1)), cy = Math.max(y0, Math.min(s.y, y1));
+    let dx = s.x - cx, dy = s.y - cy; const d2 = dx*dx + dy*dy;
+    if(d2 < MR*MR && d2 > 0){
+      const d = Math.sqrt(d2); dx /= d; dy /= d;
+      s.x = cx + dx * MR; s.y = cy + dy * MR;
+      const vn = s.vx * dx + s.vy * dy;
+      if(vn < 0){ s.vx -= 1.3 * vn * dx; s.vy -= 1.3 * vn * dy; }
+    }
+  }
+}
+function genMaze(){
+  const N = MN;
+  const H = Array.from({length:N+1}, () => Array(N).fill(true));
+  const V = Array.from({length:N}, () => Array(N+1).fill(true));
+  const seen = Array.from({length:N}, () => Array(N).fill(false));
+  const stack = [[0,0]]; seen[0][0] = true;
+  while(stack.length){
+    const [r,c] = stack[stack.length-1];
+    const nb = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b]) => a>=0 && a<N && b>=0 && b<N && !seen[a][b]);
+    if(!nb.length){ stack.pop(); continue; }
+    const [a,b] = nb[Math.floor(Math.random() * nb.length)];
+    seen[a][b] = true;
+    if(a !== r) H[Math.max(a,r)][c] = false; else V[r][Math.max(b,c)] = false;
+    stack.push([a,b]);
+  }
+  for(let i = 0; i < 7; i++){
+    if(Math.random() < .5) H[1 + Math.floor(Math.random() * (N-1))][Math.floor(Math.random() * N)] = false;
+    else V[Math.floor(Math.random() * N)][1 + Math.floor(Math.random() * (N-1))] = false;
+  }
+  const h = MT / 2; mazeRects = [];
+  for(let r = 0; r <= N; r++) for(let c = 0; c < N; c++) if(H[r][c]) mazeRects.push([c*MS-h, r*MS-h, (c+1)*MS+h, r*MS+h]);
+  for(let r = 0; r < N; r++) for(let c = 0; c <= N; c++) if(V[r][c]) mazeRects.push([c*MS-h, r*MS-h, c*MS+h, (r+1)*MS+h]);
+}
+// Uses the real physics to find a resting spot that takes many rotations to reach, so the maze is always solvable
+function solveMaze(){
+  const settle = (s, n) => { for(let i = 0; i < n; i++) mazeStep(s); s.vx = s.vy = 0; return s; };
+  const key = s => Math.round(s.x/6) + ',' + Math.round(s.y/6) + ',' + (((s.a % 360) + 360) % 360);
+  const s0 = settle({x:MS/2, y:MS/2, vx:0, vy:0, a:0, t:0}, 360);
+  const seen = new Map([[key(s0), 0]]); const q = [s0]; let best = {s:s0, d:0};
+  while(q.length && seen.size < 600){
+    const s = q.shift(), d = seen.get(key(s));
+    for(const dir of [1,-1]){
+      const n = settle({...s, t: s.a + dir * 90}, 300), k = key(n);
+      if(!seen.has(k)){ seen.set(k, d+1); q.push(n); if(d+1 > best.d) best = {s:n, d:d+1}; }
+    }
+  }
+  return best;
+}
+function buildMaze(){
+  let best = null;
+  for(let i = 0; i < 25; i++){
+    genMaze(); const r = solveMaze();
+    if(!best || r.d > best.r.d) best = {r, rects: mazeRects};
+    if(r.d >= 6) break;
+  }
+  mazeRects = best.rects; mzExit = {x: best.r.s.x, y: best.r.s.y};
+  const m = $('maze'); m.innerHTML = '';
+  mazeRects.forEach(([x0,y0,x1,y1]) => {
+    const w = document.createElement('div'); w.className = 'wall';
+    w.style.cssText = `left:${x0}px;top:${y0}px;width:${x1-x0}px;height:${y1-y0}px`;
+    m.appendChild(w);
+  });
+  const hole = document.createElement('div'); hole.className = 'hole';
+  hole.style.left = (mzExit.x - 11) + 'px'; hole.style.top = (mzExit.y - 11) + 'px';
+  m.appendChild(hole);
+  ballEl = document.createElement('div'); ballEl.className = 'ball'; m.appendChild(ballEl);
+  mz = {x:MS/2, y:MS/2, vx:0, vy:0, a:0, t:0};
+  drawMaze();
+}
+function drawMaze(){
+  $('maze').style.transform = 'rotate(' + mz.a + 'deg)';
+  ballEl.style.left = (mz.x - MR) + 'px'; ballEl.style.top = (mz.y - MR) + 'px';
+}
+function startLevel3(){
+  $('p2-old').classList.add('collapsed');
+  buildMaze();
+  $('puzzle3-section').classList.add('visible');
+  setTimeout(() => { mzActive = true; mzLast = performance.now(); mzAcc = 0; requestAnimationFrame(mazeLoop); }, 700);
+}
+function mazeLoop(now){
+  if(!mzActive) return;
+  mzAcc = Math.min(mzAcc + (now - mzLast) / 1000, .1); mzLast = now;
+  while(mzAcc >= DT){
+    mazeStep(mz); mzAcc -= DT;
+    if(Math.hypot(mz.x - mzExit.x, mz.y - mzExit.y) < 7){ mazeWin(); return; }
+  }
+  drawMaze();
+  requestAnimationFrame(mazeLoop);
+}
+function mazeWin(){
+  mzActive = false;
+  ballEl.style.transition = 'left .3s ease, top .3s ease, transform .5s ease';
+  ballEl.style.left = (mzExit.x - MR) + 'px'; ballEl.style.top = (mzExit.y - MR) + 'px';
+  ballEl.style.transform = 'scale(.1)';
+  setTimeout(() => { send('finalwin', {}); show('screen-win'); }, 800);
 }
 
 let chargedPiece = null;
