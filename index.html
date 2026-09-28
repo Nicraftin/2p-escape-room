@@ -367,8 +367,9 @@ function handleData(msg){
   else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
   else if(msg.type === 'level6'){ if(myRole === 2) startLevel6(); }
   else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
-  else if(msg.type === 'space'){ if(myRole === 2 && !finStarted){ spView = msg.payload; spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
+  else if(msg.type === 'space'){ if(myRole === 2 && !finStarted){ spView = msg.payload; spOnView(msg.payload); spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
   else if(msg.type === 'spword'){ if(myRole === 1) spWord(msg.payload); }
+  else if(msg.type === 'spshape'){ if(myRole === 1 && sp && sp.tet && !sp.tet.done){ sp.tet.done = true; sp.tet.d = 0; } }
   else if(msg.type === 'spdeath'){ if(myRole === 2) spClearBoard(); }
   else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
@@ -1246,13 +1247,68 @@ function spBubble(g, s){
   });
   g.textBaseline = 'alphabetic';
 }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null}; }
+let spTetCounter = 0, spTetSeen = 0, spTetCache = {};
+function spPhase(P){ return P.hp <= P.max / 3 ? 2 : P.hp <= P.max * 2 / 3 ? 1 : 0; }
+// crossing 2/3 or 1/3 health: boss gets angry; at 1/3 the attack cooldown drops from 10s to 5s (pending timer is shortened too)
+function spPhaseCheck(s, P){ const ph = spPhase(P); if(ph > P.ph){ P.ph = ph; P.anger = 0; if(ph === 2) s.next = Math.min(s.next, s.t + 5); } }
+function spTetStars(name){
+  if(spTetCache[name]) return spTetCache[name];
+  const cells = TETROMINOES[name], has = (r, c) => cells.some(o => o[0] === r && o[1] === c), S = 56;
+  const maxR = Math.max(...cells.map(o => o[0])), maxC = Math.max(...cells.map(o => o[1]));
+  const ox = SP_W / 2 - (maxC + 1) * S / 2, oy = SP_H / 2 - (maxR + 1) * S / 2, seen = new Set(), pts = [];
+  const add = (x, y) => { const k = Math.round(x) + ',' + Math.round(y); if(!seen.has(k)){ seen.add(k); pts.push([x, y]); } };
+  const edge = (x0, y0, x1, y1) => { for(let i = 0; i <= 5; i++) add(x0 + (x1 - x0) * i / 5, y0 + (y1 - y0) * i / 5); };
+  for(const [r, c] of cells){
+    const x = ox + c * S, y = oy + r * S;
+    if(!has(r - 1, c)) edge(x, y, x + S, y);
+    if(!has(r + 1, c)) edge(x, y + S, x + S, y + S);
+    if(!has(r, c - 1)) edge(x, y, x, y + S);
+    if(!has(r, c + 1)) edge(x + S, y, x + S, y + S);
+  }
+  return spTetCache[name] = {pts, cx: SP_W / 2, by: oy + (maxR + 1) * S};
+}
+function spTetDraw(g, t, T, sc){
+  const {pts, cx, by} = spTetStars(t.name), done = !!t.done, k = done ? Math.min(1, t.d) : 0, left = Math.max(0, 5 - t.t);
+  const late = !done && left < 1.5, appear = Math.min(1, t.t / .4);
+  g.save(); g.shadowColor = done ? C.green : (late ? C.red : '#fff'); g.shadowBlur = 12;
+  pts.forEach(([x, y], i) => {
+    const tw = .55 + .45 * Math.sin(T * (late ? 14 : 4) + i * 1.7);
+    g.globalAlpha = Math.max(0, appear * tw * (1 - k) * sc);
+    g.fillStyle = done ? C.green : (late ? '#ffb3bd' : '#fff');
+    const r = (4 + 1.5 * tw) * (1 + k * .8) * appear;
+    g.beginPath();
+    for(let j = 0; j < 8; j++){ const a = j * Math.PI / 4 - Math.PI / 2, rr = j % 2 ? r * .38 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    g.closePath(); g.fill();
+  });
+  if(!done){
+    g.shadowBlur = 8; g.globalAlpha = .9 * sc; g.fillStyle = late ? C.red : '#fff';
+    g.font = 'bold 22px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(left.toFixed(1), cx, by + 34);
+  }
+  g.restore();
+}
+// Player 2: does the board hold exactly the requested piece (any position, rotations allowed, no mirroring)?
+function spShapeKey(cells){
+  const mr = Math.min(...cells.map(o => o[0])), mc = Math.min(...cells.map(o => o[1]));
+  return cells.map(([r, c]) => (r - mr) + ',' + (c - mc)).sort().join('|');
+}
+function spShapeOk(name){
+  const cells = [];
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) if(boardState[r][c]) cells.push([r, c]);
+  if(cells.length !== 4) return false;
+  const key = spShapeKey(cells); let o = TETROMINOES[name];
+  for(let i = 0; i < 4; i++){ if(spShapeKey(o) === key) return true; o = rotateOffsets(o, 1); }
+  return false;
+}
+function spOnView(v){ const t = v.tet; if(t && t.id !== spTetSeen){ spTetSeen = t.id; if(spMode && !boardLocked) resetBoard(); } }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1}; }
 // Boss hit shape: the sprite's visible body is short on top and round-ish on the bottom, so the top is much tighter than the old 111px circle
 function spPudHit(p, x, y, pad){
   const dx = x - p.x, dy = y - p.y, rx = 110 + pad, ry = (dy < 0 ? 62 : 88) + pad;
   return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) < 1;
 }
 function spPudStep(p, dt){
+  if(p && p.anger >= 0){ p.anger += dt; if(p.anger > 2.6) p.anger = -1; }
   if(!p) return;
   if(p.flee){ p.flee.t += dt; p.x += p.flee.vx * dt; p.y += p.flee.vy * dt; p.flee.vx *= 1.05; p.flee.vy *= 1.05; return; }
   p.age += dt; if(p.flash > 0) p.flash -= dt;
@@ -1272,6 +1328,8 @@ function spPudDraw(g, p, ship, T){
   if(p.dead > 1) return;
   const dd = p.dead >= 0, k = dd ? Math.min(1, p.dead) : 0;
   g.save(); g.translate(p.x, p.y + Math.sin(T * 1.7) * 3); g.scale(3, 3);
+  const an = p.anger === undefined ? -1 : p.anger, ak = an < 0 ? 0 : (an < .3 ? an / .3 : an > 2.1 ? Math.max(0, (2.6 - an) / .5) : 1);
+  if(ak > 0) g.translate((Math.random() - .5) * ak * 1.2, (Math.random() - .5) * ak * 1.2);
   if(dd){
     g.strokeStyle = '#e08a2b'; g.lineWidth = 3; g.globalAlpha = 1 - k;
     for(let i = 0; i < 12; i++){ const an = i * Math.PI / 6, d = k * 90; g.beginPath(); g.moveTo(Math.cos(an) * d * .6, Math.sin(an) * d * .6); g.lineTo(Math.cos(an) * d, Math.sin(an) * d); g.stroke(); }
@@ -1286,21 +1344,34 @@ function spPudDraw(g, p, ship, T){
   const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#eb7f10'); ig.addColorStop(1, '#b8560c');
   g.fillStyle = ig; g.fill();
   g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -8, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
+  if(ak > 0){ body(); g.fillStyle = 'rgba(255,32,32,' + ((.5 + .1 * Math.sin(T * 24)) * ak) + ')'; g.fill(); }
   const bl = (T % 3.3) < .12 ? .15 : 1, ax = Math.atan2(ship.y - p.y, ship.x - p.x), ex = Math.cos(ax) * 2, ey = Math.sin(ax) * 2;
   g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-18 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(18 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
   if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-19.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(16.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
   g.strokeStyle = '#000'; g.lineWidth = 1.6; g.lineCap = 'round'; g.lineJoin = 'round';
   g.beginPath(); g.moveTo(-7, 19); g.quadraticCurveTo(-4.5, 21.5, -2, 19); g.quadraticCurveTo(0, 17.5, 2, 19); g.quadraticCurveTo(4.5, 21.5, 7, 19); g.stroke();
+  if(ak > 0){ // angry eyebrows
+    g.save(); g.globalAlpha = Math.min(1, ak * 2); g.translate(0, -(1 - ak) * 6); g.lineCap = 'round';
+    g.beginPath(); g.moveTo(-28, 1); g.lineTo(-10, 7); g.moveTo(28, 1); g.lineTo(10, 7);
+    g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 5.6; g.stroke();
+    g.strokeStyle = '#1a0500'; g.lineWidth = 3.4; g.stroke();
+    g.restore();
+  }
   g.restore();
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color, boss){
-  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null, deaths:0, leaving:false};
+  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null, deaths:0, leaving:false, tet:null};
 }
 function spEvent(){
-  const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
-  const half = !!(s.pud && s.pud.dead < 0 && s.pud.hp <= s.pud.max / 2); // boss phase 2
-  if(k === 0){
+  const s = sp, sh = s.ship;
+  const half = !!(s.pud && s.pud.dead < 0 && s.pud.hp <= s.pud.max * 2 / 3); // boss phase 2 (2/3 health)
+  let k = Math.floor(Math.random() * (half ? 5 : 4));
+  if(k === 4 && s.tet) k = Math.floor(Math.random() * 4);
+  if(k === 4){ // phase 2+: star-outlined tetris piece, Player 2 has 5s to submit it
+    const nm = Object.keys(TETROMINOES);
+    s.tet = {id: ++spTetCounter, name: nm[Math.floor(Math.random() * nm.length)], t: 0, done: false, d: 0};
+  }else if(k === 0){
     let x, y, n = 0;
     do{ x = 30 + Math.random() * (SP_W - 60); y = 30 + Math.random() * (SP_H - 60); }while(Math.hypot(x - sh.x, y - sh.y) < 100 && ++n < 100);
     const e = {x, y, r:18, ch:0, age:0};
@@ -1349,7 +1420,7 @@ function spStep(dt){
     b.x += b.vx * dt; b.y += b.vy * dt;
     for(const e of s.statics) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
     for(const e of s.movers) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
-    const P = s.pud; if(P && P.dead < 0 && !b.hit && spPudHit(P, b.x, b.y, 3)){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
+    const P = s.pud; if(P && P.dead < 0 && !b.hit && spPudHit(P, b.x, b.y, 3)){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } else spPhaseCheck(s, P); }
   }
   s.bullets = s.bullets.filter(b => !b.hit && b.x > -10 && b.x < SP_W + 10 && b.y > -10 && b.y < SP_H + 10);
   s.statics = s.statics.filter(e => !e.dead);
@@ -1362,7 +1433,7 @@ function spStep(dt){
   }
   s.t += dt; if(s.bossT !== undefined) s.bossT += dt;
   spPudStep(s.pud, dt);
-  if(s.t >= s.next){ s.next += 10; spEvent(); }
+  if(s.t >= s.next){ const P = s.pud; s.next += (P && P.dead < 0 && P.hp <= P.max / 3) ? 5 : 10; spEvent(); }
   for(const e of s.statics){
     e.ch += dt; e.age += dt;
     if(e.vx !== undefined){ // phase-2 chargers bounce like the dvd logo
@@ -1373,6 +1444,7 @@ function spStep(dt){
   }
   for(const l of s.lasers) l.t += dt;
   for(const f of s.flashes) f.t += dt;
+  if(s.tet){ s.tet.t += dt; if(s.tet.done){ s.tet.d += dt; if(s.tet.d >= 1) s.tet = null; } }
   s.lasers = s.lasers.filter(l => l.t < 5.6);
   s.flashes = s.flashes.filter(f => f.t < 3);
   let cause = null, src = null;
@@ -1381,6 +1453,7 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
+  if(s.tet && !s.tet.done && s.tet.t >= 5) cause = 'tetris';
   if(s.pud && s.pud.dead < 0 && spPudHit(s.pud, sh.x, sh.y, 9)) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0 && !s.pud.flee){ const fa = Math.atan2(s.pud.y - SP_H / 2, s.pud.x - SP_W / 2) || (Math.random() * Math.PI * 2); s.pud.flee = {t:0, vx: Math.cos(fa) * 240, vy: Math.sin(fa) * 240}; } } send('spdeath', {}); }
 }
@@ -1389,6 +1462,7 @@ function spDraw(g, s){
   g.globalAlpha = 1;
   const T = performance.now() / 1000;
   spBackground(g, T, s.boss, s.boss ? Math.min(1, (s.bossT === undefined ? 99 : s.bossT) / 2.5) : 0);
+  if(s.tet) spTetDraw(g, s.tet, T, sc);
   spShowWords(g.canvas.id.slice(-1), s.words || [], !!(s.dying || s.leaving));
   spTitle(g.canvas.id.slice(-1), s);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
@@ -1641,6 +1715,15 @@ function startSpace(){
   setTimeout(() => { window.scrollTo({top:0, behavior:'smooth'}); spLoop(); }, 600);
 }
 function spSubmit(){
+  const tt = spView && spView.tet;
+  if(tt && !tt.done){ // tetris attack active: check the piece instead of spelling a word
+    const ok = spShapeOk(tt.name);
+    if(ok) send('spshape', {});
+    boardLocked = true;
+    document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add(ok ? 'right-fade' : 'wrong-fade'); });
+    setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+    return;
+  }
   const letters = [];
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) if(!boardState[r][c]) letters.push(String.fromCharCode(65 + r * 5 + c));
   const txt = letters.join(''), word = txt.toLowerCase();
