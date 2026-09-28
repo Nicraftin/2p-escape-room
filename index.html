@@ -133,11 +133,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .rot-btn:active{transform:scale(0.93);}
 @keyframes rotGlow{ 0%,100%{box-shadow:0 0 0 3px rgba(61,220,151,.5), 0 0 10px 2px rgba(61,220,151,.35);} 50%{box-shadow:0 0 0 4px rgba(61,220,151,.95), 0 0 24px 8px rgba(61,220,151,.75);} }
 #rotate-shelf .rot-btn.glow{border-color:var(--accent2); animation:rotGlow 1.3s ease-in-out infinite;}
+.sp-finale{text-align:center; font-weight:900; font-size:1.7rem; letter-spacing:.3em; text-indent:.3em; color:#ff2d46; margin-bottom:6px; animation:finalePulse 1.4s ease-in-out infinite, finaleShake 3s linear infinite;}
+@keyframes finalePulse{ 0%,100%{text-shadow:0 0 6px rgba(255,45,70,.6), 0 0 14px rgba(255,45,70,.4); transform:scale(1);} 50%{text-shadow:0 0 12px rgba(255,45,70,1), 0 0 30px rgba(255,45,70,.8), 0 0 46px rgba(255,45,70,.5); transform:scale(1.08);} }
+@keyframes finaleShake{ 0%,90%,100%{margin-left:0;} 92%{margin-left:-3px;} 94%{margin-left:3px;} 96%{margin-left:-2px;} 98%{margin-left:2px;} }
+.sp-title.orange{color:#FF9047;}
+@keyframes spWordIn{ 0%{opacity:0; transform:translateY(16px) scale(.3);} 55%{opacity:1; transform:translateY(-6px) scale(1.25); box-shadow:0 0 22px 4px rgba(61,220,151,.8);} 100%{opacity:1; transform:none; box-shadow:0 0 0 rgba(61,220,151,0);} }
+@keyframes spWordOut{ 0%{opacity:1; transform:none;} 30%{transform:translateY(-4px) scale(1.12); box-shadow:0 0 16px 3px rgba(255,255,255,.6);} 100%{opacity:0; transform:translateY(18px) scale(.2); box-shadow:none;} }
+.sp-word.in{animation:spWordIn .6s cubic-bezier(.2,.8,.3,1) both;}
+.sp-word.out{animation:spWordOut .5s ease-in forwards; pointer-events:none;}
 .sp-title{text-align:center; font-weight:800; font-size:1.15rem; margin-bottom:12px;}
 .sp-words{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; min-height:38px;}
 .sp-word{padding:6px 14px; border-radius:8px; background:var(--panel2); color:var(--accent2); font-weight:800; letter-spacing:.15em; text-transform:uppercase;}
 .tetris-grid.letters .grid-cell{display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; padding:0;}
-.tetris-grid.letters .grid-cell.filled{color:#333;}
+.tetris-grid.letters .grid-cell.filled{color:transparent;}
 .space-cv{display:block; width:100%; max-width:480px; height:auto; aspect-ratio:1; margin:0 auto; border-radius:12px; box-shadow:0 0 0 2px var(--panel2), 0 10px 30px rgba(0,0,0,.35);}
 </style>
 </head>
@@ -172,7 +180,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game1" class="screen">
-  <div id="space-section-1" class="reveal"><div class="reveal-inner"><div class="sp-title">Say three 5 letter words to summon me!</div><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-1"></div></div></div>
+  <div id="space-section-1" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-title" id="sp-title-1">Say three 5-letter words to summon me!</div><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-1"></div></div></div>
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
   <div id="rotate-shelf" class="reveal"><div class="reveal-inner"><div>
@@ -194,7 +202,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game2" class="screen">
-  <div id="space-section-2" class="reveal"><div class="reveal-inner"><div class="sp-title">Say three 5 letter words to summon me!</div><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-2"></div></div></div>
+  <div id="space-section-2" class="reveal"><div class="reveal-inner"><div class="sp-finale">THE FINALE</div><div class="sp-title" id="sp-title-2">Say three 5-letter words to summon me!</div><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-2"></div></div></div>
   <div class="light-row">
     <div class="light" id="light"></div>
   </div>
@@ -1101,14 +1109,14 @@ const SP_BG = (() => {
     ({vy, vx, stars: Array.from({length: cnt}, () => ({x: R() * SP_W, y: R() * SP_H, sz: sz * (.6 + R() * .7), ph: R() * 6.28, sp: 1 + R() * 3, tint: tints[Math.floor(R() * 3)]}))}));
   return {neb, layers, R: {sx: R() * 480, sy: R() * 480}};
 })();
-function spBackground(g, T, boss){
+function spBackground(g, T, boss, fade){
   const W = SP_W, H = SP_H;
   g.fillStyle = '#04050c'; g.fillRect(0, 0, W, H);
   const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0a0620'); bg.addColorStop(1, '#03101f');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   const ox = (T * 3) % W, oy = (T * 6) % H;
   if(boss){
-    g.globalAlpha = .55 + .15 * Math.sin(T * .4);
+    g.globalAlpha = (.55 + .15 * Math.sin(T * .4)) * fade;
     for(const dx of [-W, 0]) for(const dy of [-H, 0]) g.drawImage(SP_BG.neb, ox + dx, oy + dy);
     g.globalAlpha = 1;
   }
@@ -1123,22 +1131,64 @@ function spBackground(g, T, boss){
   g.globalAlpha = 1;
   // shooting stars
   for(let i = 0; i < (boss ? 2 : 0); i++){
+    const _fa = fade;
     const per = 6 + i * 3.7, u = T + i * 2.3, cyc = Math.floor(u / per), ph = (u % per) / per;
     if(ph < .1){
       const R = spRng(cyc * 31 + i * 7), x0 = R() * W, y0 = R() * H * .6, an = .5 + R() * .5, p = ph / .1, d = p * 160;
       const x = x0 + Math.cos(an) * d, y = y0 + Math.sin(an) * d;
       const tg = g.createLinearGradient(x, y, x - Math.cos(an) * 60, y - Math.sin(an) * 60);
-      tg.addColorStop(0, `rgba(255,255,255,${1 - p})`); tg.addColorStop(1, 'rgba(255,255,255,0)');
+      tg.addColorStop(0, `rgba(255,255,255,${(1 - p) * _fa})`); tg.addColorStop(1, 'rgba(255,255,255,0)');
       g.strokeStyle = tg; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x - Math.cos(an) * 60, y - Math.sin(an) * 60); g.stroke();
     }
   }
 }
-function spShowWords(id, words){
+function spShowWords(id, words, leaving){
   const el = $('sp-words-' + id); if(!el) return;
-  const key = words.join(',');
-  if(el.dataset.k === key) return;
-  el.dataset.k = key; el.innerHTML = '';
-  words.forEach(w => { const d = document.createElement('div'); d.className = 'sp-word'; d.textContent = w; el.appendChild(d); });
+  const live = [...el.children].filter(d => !d.classList.contains('out'));
+  const drop = d => { d.classList.add('out'); setTimeout(() => d.remove(), 600); };
+  if(leaving) live.forEach((d, i) => { d.style.animationDelay = (i * .08) + 's'; drop(d); });
+  else{
+    live.forEach(d => { if(!words.includes(d.textContent)) drop(d); });
+    words.forEach(w => {
+      if(live.some(d => d.textContent === w)) return;
+      const d = document.createElement('div'); d.className = 'sp-word in'; d.textContent = w; el.appendChild(d);
+    });
+  }
+}
+const SP_MSG = [
+  "So you've chosen death...",
+  "You really did choose death, want another one?",
+  "The 2 for 1 special, killing you for free!",
+  "Hey, when I said it was free deaths, I didn't mean three deaths",
+  "Another death four you, get it?",
+  "You need a hand? Can't count past 5 with just one",
+  "You have two hands to count 6 deaths? Doesn't look like it",
+  "What was I saying? You guys should have 4 hands, 0 useful ones",
+  "8 deaths? I'll flip that number 90 degrees",
+  "I hoping you're not a cat right now",
+  "Have you tried 10? Oh wait, yes you did",
+  "Unlike an easy skeleton, I can count past 10",
+  "You know what they say, 13th time is the charm",
+  () => 'You\'ve been here for ' + $('game-timer').textContent + ', please forfeit',
+  "14 me, 0 you two",
+  "A new milestone! 3 full hands!",
+  "16? With that age, consider a driver's license for this ship",
+  "You've died so many times that there's nothing creative to say about 17",
+  "18? Can we send you to jail now?",
+  "Just one more death and we hit the big 20",
+  "LET'S GO! A death for each finger you can't use properly!",
+  "Ngl, I'm kinda tired of counting too, I get you Sans",
+  "Let's just say... 22 deaths"
+];
+function spTitle(id, s){
+  const el = $('sp-title-' + id); if(!el) return;
+  let t = 'Say three 5-letter words to summon me!', o = false;
+  if(s.boss){
+    const d = s.deaths || 0, m = SP_MSG[d];
+    t = m === undefined ? d + ' deaths' : (typeof m === 'function' ? m() : m); o = true;
+  }
+  if(el.textContent !== t) el.textContent = t;
+  el.classList.toggle('orange', o);
 }
 function spBubble(g, s){
   const b = s.bubble; if(!b) return;
@@ -1167,7 +1217,7 @@ function spBubble(g, s){
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color, boss){
-  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null};
+  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null, deaths:0, leaving:false};
 }
 function spEvent(){
   const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
@@ -1191,7 +1241,7 @@ function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
     s.dying.t += dt;
-    if(s.dying.t >= 1.5) sp = spFresh(sh.c, s.boss);
+    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss) n.bossT = 99; sp = n; }
     return;
   }
   if(s.bubble){
@@ -1221,7 +1271,7 @@ function spStep(dt){
     if(m.x < m.r){ m.x = m.r; m.vx = Math.abs(m.vx); m.bt = 0; m.bax = 'x'; } else if(m.x > SP_W - m.r){ m.x = SP_W - m.r; m.vx = -Math.abs(m.vx); m.bt = 0; m.bax = 'x'; }
     if(m.y < m.r){ m.y = m.r; m.vy = Math.abs(m.vy); m.bt = 0; m.bax = 'y'; } else if(m.y > SP_H - m.r){ m.y = SP_H - m.r; m.vy = -Math.abs(m.vy); m.bt = 0; m.bax = 'y'; }
   }
-  s.t += dt;
+  s.t += dt; if(s.bossT !== undefined) s.bossT += dt;
   if(s.t >= s.next){ s.next += 10; spEvent(); }
   for(const e of s.statics){ e.ch += dt; e.age += dt; }
   for(const l of s.lasers) l.t += dt;
@@ -1233,14 +1283,15 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
-  if(cause) s.dying = {t:0, x:sh.x, y:sh.y, beam: src};
+  if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss) s.deaths++; }
 }
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
   g.globalAlpha = 1;
   const T = performance.now() / 1000;
-  spBackground(g, T, s.boss);
-  spShowWords(g.canvas.id.slice(-1), s.words || []);
+  spBackground(g, T, s.boss, s.boss ? Math.min(1, (s.bossT === undefined ? 99 : s.bossT) / 2.5) : 0);
+  spShowWords(g.canvas.id.slice(-1), s.words || [], !!(s.dying || s.leaving));
+  spTitle(g.canvas.id.slice(-1), s);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
     const hw = SP_LW / 2, R = l.v ? [-hw, -H / 2, 2 * hw, H] : [-W / 2, -hw, W, 2 * hw];
@@ -1364,7 +1415,8 @@ function spAddWord(w){
   sp.words.push(w);
   if(sp.words.length >= 3 && !spWon){
     spWon = true;
-    setTimeout(() => { if(sp && !sp.boss) spBossStart(); }, 2500);
+    setTimeout(() => { if(sp && !sp.boss) sp.leaving = true; }, 2500);
+    setTimeout(() => { if(sp && !sp.boss) spBossStart(); }, 3200);
   }
 }
 // Bossfight level: same arena with the glow + shooting stars, random enemies keep spawning, no boss yet
@@ -1372,7 +1424,9 @@ function spBossStart(){
   if(!sp || sp.boss) return;
   spWon = true; p1Stage = 8;
   $('skip-btn').style.display = 'none';
-  sp = spFresh(sp.ship.c, true);
+  const old = sp.ship, n = spFresh(old.c, true);
+  Object.assign(n.ship, {x: old.x, y: old.y, a: old.a, cd: old.cd, mv: old.mv});
+  n.bossT = 0; sp = n;
 }
 function startSpace(){
   if(spStarted) return;
