@@ -86,25 +86,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #plat > div, #plat-blocks > div{position:absolute;}
 #plat .pc{background:rgba(88,101,242,.07); box-shadow:inset 0 0 0 1px rgba(154,156,176,.18); border-radius:4px;}
 #plat .pb{border-radius:3px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.28), inset 0 3px 0 rgba(255,255,255,.28);}
-#plat .pledge{background-color:#24263b; box-shadow:inset -2px 0 0 rgba(255,255,255,.05);
-  background-image:linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(180deg, rgba(88,101,242,.22), rgba(0,0,0,.28));
-  background-size:var(--t) var(--t), var(--t) var(--t), 100% 100%;}
+#plat .pledge{background:linear-gradient(180deg,#30345a,#25283f);}
 #plat .pledge::before{content:''; position:absolute; left:0; right:0; top:0; height:5px; background:linear-gradient(90deg,#5865f2,#8f99ff);}
 #plat .pceil{background:linear-gradient(rgba(0,0,0,.5), transparent); pointer-events:none;}
-@keyframes exitFlash{ 0%{filter:brightness(1);} 45%{filter:brightness(1.7); box-shadow:0 0 0 3px #b6ffd8, 0 0 34px 12px rgba(61,220,151,.95), inset 0 0 14px rgba(0,0,0,.35);} 100%{filter:brightness(1);} }
+@keyframes exitFlash{ 0%{filter:brightness(1);} 45%{filter:brightness(1.35); box-shadow:0 0 0 2px #8ff0c0, 0 0 14px 3px rgba(61,220,151,.6), inset 0 0 12px rgba(0,0,0,.4);} 100%{filter:brightness(1);} }
 #plat .pexit .pdoor.enter{animation:exitFlash .8s ease-out both;}
 #plat .pexit .pdoor{position:absolute; left:10%; right:10%; top:4%; bottom:0; border-radius:50% 50% 0 0 / 100% 100% 0 0; overflow:hidden;
-  background:radial-gradient(ellipse at 50% 100%, #d9ffea 0%, #3ddc97 28%, #0d4a33 62%, #02100a 100%);
-  box-shadow:0 0 0 3px #3ddc97, 0 0 16px 3px rgba(61,220,151,.65), inset 0 0 14px rgba(0,0,0,.55);
-  animation:exitPulse 2.4s ease-in-out infinite;}
-#plat .pexit .pdoor::before{content:''; position:absolute; left:50%; bottom:-10%; width:70%; height:130%; transform:translateX(-50%);
-  background:linear-gradient(to top, rgba(255,255,255,.75), rgba(255,255,255,0)); border-radius:50% 50% 0 0 / 100% 100% 0 0; filter:blur(4px);
-  animation:exitRise 2.4s ease-in-out infinite;}
-@keyframes exitPulse{ 0%,100%{box-shadow:0 0 0 3px #3ddc97, 0 0 12px 2px rgba(61,220,151,.5), inset 0 0 14px rgba(0,0,0,.55);} 50%{box-shadow:0 0 0 3px #7dffc4, 0 0 24px 6px rgba(61,220,151,.85), inset 0 0 14px rgba(0,0,0,.55);} }
-@keyframes exitRise{ 0%,100%{opacity:.45; transform:translateX(-50%) translateY(6%);} 50%{opacity:.95; transform:translateX(-50%) translateY(-4%);} }
+  background:radial-gradient(ellipse at 50% 100%, #8fe8bd 0%, #2fae79 30%, #0d4a33 65%, #04140d 100%);
+  box-shadow:0 0 0 2px #2fae79, 0 0 6px 0 rgba(61,220,151,.3), inset 0 0 12px rgba(0,0,0,.5);}
+#plat .pexit .pdoor::before{content:''; position:absolute; left:50%; bottom:-10%; width:60%; height:120%; transform:translateX(-50%);
+  background:linear-gradient(to top, rgba(255,255,255,.3), rgba(255,255,255,0)); border-radius:50% 50% 0 0 / 100% 100% 0 0;}
 #plat .pplayer.respawn{animation:pfRespawn .7s linear;}
 @keyframes pfRespawn{ 0%{background:#ff5c72; opacity:0;} 20%{opacity:1;} 40%{opacity:.2;} 60%{opacity:1;} 80%{opacity:.4;} 100%{background:#fff; opacity:1;} }
-#plat .pplayer{left:0; top:0; background:#fff; border-radius:4px; box-shadow:0 0 12px 2px rgba(255,255,255,.28), inset 0 -3px 0 rgba(0,0,0,.08); will-change:transform;}
+#plat .pplayer{left:0; top:0; background:#fff; border-radius:4px; box-shadow:0 2px 0 rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.08); will-change:transform;}
 #plat-blocks{position:absolute; left:0; top:0; width:100%; height:100%;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
@@ -205,7 +199,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <script>
-const C = { red:'#ff5c72', orange:'#ffb347', yellow:'#ffe066', green:'#3ddc97', blue:'#5865f2' };
+const C = { red:'#ff5c72', orange:'#ff9047', yellow:'#ffe066', green:'#3ddc97', blue:'#5865f2' };
 const PUZZLE = {
   buttonMap: [C.yellow, C.green, C.red, C.orange, C.blue],
   pillars: [
@@ -718,16 +712,23 @@ function advanceToColorStage(){
   resetBoard();
   $('light').classList.add('needs-color');
 }
+// Same red shrink-and-fade used for wrong submissions, then the grid is emptied (and synced to Player 1 in the platformer)
+function clearBoardAnimated(){
+  const filled = document.querySelectorAll('.grid-cell.filled');
+  if(!filled.length) return;
+  boardLocked = true;
+  filled.forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add('wrong-fade'); });
+  setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+}
 function submitPattern(){
   if(boardLocked) return;
-  if(platMode){ resetBoard(); return; } // platformer level: Submit clears the whole path at once
+  if(platMode){ clearBoardAnimated(); return; } // platformer level: Submit clears the whole path at once
   const stage = stageIndex;
   send('submitted', {board: boardState.map(r => r.slice()), stage});
   boardLocked = true;
   if(!patternMatches(STAGE_PATTERNS[stage])){
     shakeGrid();
-    document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add('wrong-fade'); });
-    setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+    boardLocked = false; clearBoardAnimated();
     return;
   }
   const grid = $('tetris-grid');
@@ -742,6 +743,7 @@ function submitPattern(){
       startLevel3();
     }
     boardLocked = false;
+    if(stage === 1) clearBoardAnimated(); // completed color puzzle: clear the 5x5 so it's free to use
   }, 1050);
 }
 
@@ -1074,6 +1076,11 @@ function btnRelease(k){ if(inBt[k]){ inBt[k] = 0; syncInput(); } }
 const KEYS = {ArrowLeft:'l', KeyA:'l', ArrowRight:'r', KeyD:'r', ArrowUp:'u', KeyW:'u'};
 document.addEventListener('keydown', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 1; syncInput(); });
 document.addEventListener('keyup', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 0; syncInput(); });
+document.addEventListener('keydown', e => {
+  if((e.code !== 'Enter' && e.code !== 'NumpadEnter') || myRole !== 2 || e.repeat) return;
+  if(!$('screen-game2').classList.contains('active') || !$('puzzle2-section').classList.contains('visible') || dragState) return;
+  e.preventDefault(); submitPattern();
+});
 window.addEventListener('blur', () => { if(!platMode) return; for(const k of ['l','r','u']){ inKb[k] = 0; inBt[k] = 0; } syncInput(); });
 // once a reveal finishes, let its content overflow (so glows/shadows aren't clipped)
 document.addEventListener('transitionend', e => {
