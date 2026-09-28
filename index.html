@@ -116,6 +116,8 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .mini-cell.filled{background:#fff;}
 .info-row{display:flex; gap:20px; justify-content:center; align-items:flex-start;}
 .info-row .mini-grid{margin:0;}
+#dc-overlay{position:fixed; inset:0; z-index:1000; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:#0b0d14; color:#fff; text-align:center; padding:24px;}
+#dc-title{font-size:1.7rem; font-weight:700;}
 #game-timer{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:50; display:none; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1.2rem; font-weight:700; color:var(--text); background:rgba(0,0,0,.35); padding:4px 12px; border-radius:8px; pointer-events:none;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
@@ -184,6 +186,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
     <div><input id="code-in" class="code-input" maxlength="4" placeholder="CODE"></div>
     <button class="big-btn" onclick="startJoin()">Connect</button>
   </div>
+  <button class="big-btn" style="margin-top:20px;" onclick="showRc()">Reconnect</button>
+  <div id="rc-box" style="display:none; margin-top:20px;">
+    <div><input id="rc-in" class="code-input" maxlength="4" placeholder="CODE"></div>
+    <button class="big-btn" onclick="doRejoin($('rc-in').value, $('connect-err'))">Connect</button>
+  </div>
   <div class="err" id="connect-err"></div>
 </div>
 
@@ -247,6 +254,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="game-timer">00:00.000</div>
+
+<div id="dc-overlay">
+  <div id="dc-title"></div>
+  <div id="dc-other" style="display:none;">
+    <p class="sub">Reconnect code</p>
+    <div class="code-display" id="dc-code">----</div>
+  </div>
+  <div id="dc-me" style="display:none;">
+    <div><input id="dc-in" class="code-input" maxlength="4" placeholder="CODE"></div>
+    <button class="big-btn" onclick="doRejoin($('dc-in').value, $('dc-err'))">Reconnect</button>
+    <div class="err" id="dc-err"></div>
+  </div>
+</div>
 
 <div id="screen-win" class="screen">
   <div class="win">You win! 🎉</div>
@@ -349,10 +369,116 @@ function startJoin(){
 }
 
 function wireConn(){
-  conn.on('data', handleData);
+  conn.on('data', rx);
+  watchConn(conn);
   show('screen-ready');
 }
-function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); }
+let netPaused = false, pauseStart = 0, dcMode = null, lastRx = 0, hbTimer = null, outQ = [];
+const COALESCE = {space:1, input:1, board:1, rotate:1, rotglow:1, lightblock:1, finn:1};
+function send(type, payload){
+  if(netPaused){
+    if(COALESCE[type]) outQ = outQ.filter(m => m.type !== type);
+    outQ.push({type, payload});
+    return;
+  }
+  if(conn && conn.open) conn.send({type, payload});
+}
+function rx(m){
+  lastRx = performance.now();
+  if(m.type === 'ping') return;
+  if(m.type === 'dc'){ if(!netPaused) enterPause('me'); return; }
+  handleData(m);
+}
+function watchConn(c){
+  lastRx = performance.now();
+  c.on('close', () => connLost(c));
+  c.on('error', () => connLost(c));
+  clearInterval(hbTimer);
+  hbTimer = setInterval(() => {
+    if(c !== conn || netPaused) return;
+    if(c.open) c.send({type:'ping'});
+    if(performance.now() - lastRx > 8000) connLost(c);
+  }, 1000);
+}
+function connLost(c){
+  if(c !== conn || netPaused) return;
+  if(navigator.onLine === false){ enterPause('me'); return; }
+  try{ if(c.open) c.send({type:'dc'}); }catch(e){}
+  enterPause('other');
+}
+window.addEventListener('offline', () => { if(conn && !netPaused) enterPause('me'); });
+function enterPause(mode){
+  netPaused = true; pauseStart = performance.now(); dcMode = mode;
+  clearInterval(hbTimer);
+  $('dc-overlay').style.display = 'flex';
+  if(mode === 'other'){
+    $('dc-title').textContent = 'The other player disconnected';
+    $('dc-other').style.display = 'block'; $('dc-me').style.display = 'none';
+    $('dc-code').textContent = '----';
+    listenRejoin();
+  }else{
+    $('dc-title').textContent = 'You disconnected';
+    $('dc-other').style.display = 'none'; $('dc-me').style.display = 'block';
+    $('dc-err').textContent = '';
+  }
+}
+function listenRejoin(){
+  const code = makeCode();
+  if(peer) peer.destroy();
+  peer = new Peer('2pesc-rc-' + code);
+  peer.on('open', () => { $('dc-code').textContent = code; });
+  peer.on('error', err => { if(err.type === 'unavailable-id') listenRejoin(); });
+  peer.on('connection', c => c.on('data', m => {
+    if(c === conn){ rx(m); return; }
+    if(m.type !== 'rejoin') return;
+    const p = m.payload, theirs = 3 - myRole;
+    let bad = null;
+    if(p.role && p.role !== theirs) bad = 'Wrong lobby.';
+    else if(started && !(p.inGame && p.role === theirs)) bad = 'This game can only be rejoined from the original tab.';
+    else if(!started && p.inGame) bad = 'Wrong lobby.';
+    if(bad){ c.send({type:'rejoinfail', payload:{reason:bad}}); setTimeout(() => c.close(), 300); return; }
+    conn = c;
+    if(!started) ready[theirs] = false;
+    c.send({type:'rejoinok', payload:{role:myRole}});
+    watchConn(c);
+    resume();
+  }));
+}
+function showRc(){ $('rc-box').style.display = 'block'; }
+function doRejoin(code, errEl){
+  code = code.trim().toUpperCase();
+  if(code.length !== 4){ errEl.textContent = 'Enter the 4-character code.'; return; }
+  errEl.textContent = '';
+  if(peer){ try{ peer.destroy(); }catch(e){} }
+  const p = peer = new Peer();
+  let done = false;
+  const fail = msg => { if(done) return; done = true; errEl.textContent = msg; };
+  const to = setTimeout(() => fail('Could not connect — check the code.'), 12000);
+  p.on('error', () => { clearTimeout(to); fail('Could not connect — check the code.'); });
+  p.on('open', () => {
+    const c = p.connect('2pesc-rc-' + code);
+    c.on('open', () => c.send({type:'rejoin', payload:{role:myRole, inGame:started}}));
+    c.on('data', m => {
+      if(c === conn){ rx(m); return; }
+      if(m.type === 'rejoinfail'){ clearTimeout(to); fail(m.payload.reason); c.close(); }
+      else if(m.type === 'rejoinok'){
+        clearTimeout(to); done = true;
+        conn = c;
+        if(myRole === null){ myRole = 3 - m.payload.role; show('screen-ready'); $('ready-btn').disabled = false; }
+        watchConn(c);
+        resume();
+      }
+    });
+  });
+}
+function resume(){
+  if(netPaused){ gameT0 += performance.now() - pauseStart; netPaused = false; }
+  dcMode = null;
+  $('dc-overlay').style.display = 'none';
+  const q = outQ; outQ = [];
+  if(!started && myRole && ready[myRole]) send('ready', {role:myRole});
+  q.forEach(m => send(m.type, m.payload));
+}
 function handleData(msg){
   if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
@@ -418,9 +544,9 @@ function fmtTime(ms){
   return (h > 0 ? h + ':' : '') + p2(m) + ':' + p2(sec) + '.' + String(x).padStart(3, '0');
 }
 function startTimer(){
-  gameT0 = performance.now();
+  gameT0 = performance.now(); if(netPaused) pauseStart = gameT0;
   const el = $('game-timer'); el.style.display = 'block';
-  const tick = () => { if(timerStop !== null){ el.textContent = fmtTime(timerStop); return; } el.textContent = fmtTime(performance.now() - gameT0); requestAnimationFrame(tick); };
+  const tick = () => { if(timerStop !== null){ el.textContent = fmtTime(timerStop); return; } el.textContent = fmtTime((netPaused ? pauseStart : performance.now()) - gameT0); requestAnimationFrame(tick); };
   tick();
 }
 function startGame(){
@@ -921,6 +1047,7 @@ function startMazeLoop(){
   mzActive = true; mzLast = performance.now(); mzAcc = 0; mz.dir = mzDir;
   const f = now => {
     if(!mzActive || id !== mzLoopId) return;
+    if(netPaused){ mzLast = now; requestAnimationFrame(f); return; }
     mzAcc = Math.min(mzAcc + (now - mzLast) / 1000, .1); mzLast = now;
     while(mzAcc >= DT){
       mazeStep(mz); mzAcc -= DT;
@@ -1066,6 +1193,7 @@ function pfLoop(){
   const id = ++pfLoopId; pfActive = true; pfLast = performance.now(); pfAcc = 0;
   const f = now => {
     if(!pfActive || id !== pfLoopId) return;
+    if(netPaused){ pfLast = now; requestAnimationFrame(f); return; }
     pfAcc = Math.min(pfAcc + (now - pfLast) / 1000, .1); pfLast = now;
     while(pfAcc >= PF_DT){
       pfStep(); pfAcc -= PF_DT;
@@ -1252,8 +1380,8 @@ function spBubble(g, s){
 }
 let spTetCounter = 0, spTetSeen = 0, spTetCache = {};
 function spPhase(P){ return P.hp <= P.max / 3 ? 2 : P.hp <= P.max * 2 / 3 ? 1 : 0; }
-// crossing 2/3 or 1/3 health: boss gets angry; at 1/3 the attack cooldown drops from 10s to 4s (pending timer is shortened too)
-function spPhaseCheck(s, P){ const ph = spPhase(P); if(ph > P.ph){ P.ph = ph; P.anger = 0; if(ph === 2) s.next = Math.min(s.next, s.t + 4); } }
+// crossing 2/3 or 1/3 health: boss gets angry; at 1/3 the attack cooldown drops from 10s to 5s (pending timer is shortened too)
+function spPhaseCheck(s, P){ const ph = spPhase(P); if(ph > P.ph){ P.ph = ph; P.anger = 0; if(ph === 2) s.next = Math.min(s.next, s.t + 5); } }
 function spTetStars(name){
   if(spTetCache[name]) return spTetCache[name];
   const cells = TETROMINOES[name], has = (r, c) => cells.some(o => o[0] === r && o[1] === c), S = 56;
@@ -1304,7 +1432,7 @@ function spShapeOk(name){
   return false;
 }
 function spOnView(v){ const t = v.tet; if(t && t.id !== spTetSeen){ spTetSeen = t.id; if(spMode && !boardLocked) resetBoard(); } }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 360, max: 360, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 300, max: 300, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1}; }
 // Boss hit shape: the sprite's visible body is short on top and round-ish on the bottom, so the top is much tighter than the old 111px circle
 function spPudHit(p, x, y, pad){
   const dx = x - p.x, dy = y - p.y, rx = 110 + pad, ry = (dy < 0 ? 62 : 88) + pad;
@@ -1444,7 +1572,7 @@ function spStep(dt){
   }
   s.t += dt; if(s.bossT !== undefined) s.bossT += dt;
   spPudStep(s.pud, dt);
-  if(s.t >= s.next){ const P = s.pud; s.next += (P && P.dead < 0 && P.hp <= P.max / 3) ? 4 : 10; spEvent(); }
+  if(s.t >= s.next){ const P = s.pud; s.next += (P && P.dead < 0 && P.hp <= P.max / 3) ? 5 : 10; spEvent(); }
   for(const e of s.statics){
     e.ch += dt; e.age += dt;
     if(e.vx !== undefined){ // phase-2 chargers bounce like the dvd logo
@@ -1604,6 +1732,7 @@ function spLoop(){
   const id = ++spLoopId; spActive = true; spLast = performance.now(); spAcc = 0;
   const f = now => {
     if(!spActive || id !== spLoopId) return;
+    if(netPaused){ spLast = now; requestAnimationFrame(f); return; }
     spAcc = Math.min(spAcc + (now - spLast) / 1000, .1); spLast = now;
     while(spAcc >= SP_DT){ spStep(SP_DT); spAcc -= SP_DT; }
     spDraw($('space-cv-1').getContext('2d'), sp);
@@ -1684,6 +1813,7 @@ function finShowButton(){
 }
 function finLoop(now){
   if(!finBtn) return;
+  if(netPaused){ finLast = now; requestAnimationFrame(finLoop); return; }
   const dt = Math.min(.05, (now - finLast) / 1000); finLast = now;
   if(finN <= 100 && finN > 0){ // DVD-logo bounce, faster as the count drops
     if(!finMoving){ finMoving = true; finVx = Math.random() < .5 ? -1 : 1; finVy = Math.random() < .5 ? -1 : 1; }
@@ -1786,6 +1916,7 @@ function startMazeSpin(){
   mzActive = true;
   const f = now => {
     if(!mzActive || id !== mzLoopId) return;
+    if(netPaused){ last = now; requestAnimationFrame(f); return; }
     mz.a += (mzDir || 0) * RSPEED * Math.min((now - last) / 1000, .1); last = now;
     drawMaze();
     requestAnimationFrame(f);
