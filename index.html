@@ -1251,15 +1251,15 @@ function spPudDraw(g, p, ship, T){
   const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#f2a93a'); bg.addColorStop(.45, '#ffe6ab'); bg.addColorStop(1, '#e7962e');
   body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
   if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
-  g.beginPath(); g.moveTo(-30, -12); g.quadraticCurveTo(0, -24, 30, -12); g.lineTo(30, -6); g.quadraticCurveTo(26, 4, 22, -6); g.lineTo(14, -8); g.quadraticCurveTo(10, 12, 6, -8); g.lineTo(-4, -9); g.quadraticCurveTo(-8, 0, -12, -9); g.lineTo(-20, -9); g.quadraticCurveTo(-24, 10, -28, -8); g.closePath();
-  const ig = g.createRadialGradient(0, -12, 4, 0, -12, 40); ig.addColorStop(0, '#6e2c10'); ig.addColorStop(1, '#3c1406');
+  g.beginPath(); g.moveTo(-30, -4); g.quadraticCurveTo(0, -16, 30, -4); g.lineTo(30, 0); g.quadraticCurveTo(26, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-24, 5, -28, -1); g.closePath();
+  const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#e2790f'); ig.addColorStop(1, '#a34c0a');
   g.fillStyle = ig; g.fill();
-  g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -16, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -8, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
   const bl = (T % 3.3) < .12 ? .15 : 1, ax = Math.atan2(ship.y - p.y, ship.x - p.x), ex = Math.cos(ax) * 2, ey = Math.sin(ax) * 2;
-  g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-9 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(9 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
-  if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-10.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(7.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
-  g.strokeStyle = '#7a3c15'; g.lineWidth = 1.6; g.lineCap = 'round'; g.lineJoin = 'round';
-  g.beginPath(); g.moveTo(-11, 20); g.quadraticCurveTo(-6, 24, -1, 20); g.quadraticCurveTo(4, 16, 9, 20); g.stroke();
+  g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-16 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(16 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
+  if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-17.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(14.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
+  g.strokeStyle = '#000'; g.lineWidth = 1.6; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(-10, 19); g.quadraticCurveTo(-7, 22, -4, 19); g.quadraticCurveTo(-1, 16, 2, 19); g.quadraticCurveTo(5, 22, 8, 19); g.stroke();
   g.restore();
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
@@ -1288,7 +1288,7 @@ function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
     s.dying.t += dt; spPudStep(s.pud, dt);
-    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss){ n.pud = spPud(); n.bossT = 99; } sp = n; }
+    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss){ n.pud = spPud(); n.bossT = 99; n.ship.y = SP_H - 100; } sp = n; }
     return;
   }
   if(s.bubble){
@@ -1333,7 +1333,7 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
-  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 129) cause = 'pudding';
+  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 112) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0) s.pud.dead = 0; } send('spdeath', {}); }
 }
 function spDraw(g, s){
