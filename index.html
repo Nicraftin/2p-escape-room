@@ -157,6 +157,15 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .tetris-grid.letters .grid-cell{display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; padding:0;}
 .tetris-grid.letters .grid-cell.filled{color:transparent;}
 .space-cv{display:block; width:100%; max-width:480px; height:auto; aspect-ratio:1; margin:0 auto; border-radius:12px; box-shadow:0 0 0 2px var(--panel2), 0 10px 30px rgba(0,0,0,.35);}
+#fin-flash{position:fixed; inset:0; background:#fff; z-index:70; pointer-events:none; opacity:0;}
+#game-timer.fin{color:#fff; padding:10px 26px; border-radius:16px; transition:top 3.2s cubic-bezier(.65,0,.35,1), transform 3.2s cubic-bezier(.65,0,.35,1), font-size 3.2s cubic-bezier(.65,0,.35,1), padding 3.2s ease;}
+@keyframes finGlow{ 0%,100%{text-shadow:0 0 12px #3ddc97, 0 0 30px rgba(61,220,151,.8), 0 0 60px rgba(61,220,151,.5); box-shadow:0 0 30px rgba(61,220,151,.35);} 50%{text-shadow:0 0 18px #7dffc4, 0 0 44px rgba(61,220,151,1), 0 0 90px rgba(61,220,151,.7); box-shadow:0 0 60px rgba(61,220,151,.6);} }
+#game-timer.fin.done{color:#3ddc97; background:rgba(0,0,0,.55); transition:font-size 1.2s ease-out, color .8s ease, background .8s ease; animation:finGlow 2.2s ease-in-out infinite;}
+#fin-msg{position:fixed; left:50%; bottom:calc(58% + 90px); transform:translateX(-50%); width:92vw; max-width:900px; text-align:center; font-weight:800; font-size:min(2.4rem,7.5vw); color:#3ddc97; text-shadow:0 0 18px rgba(61,220,151,.6); opacity:0; transition:opacity 2s ease; z-index:55; pointer-events:none;}
+#fin-msg.on{opacity:1;}
+#fin-btn{position:fixed; left:0; top:0; z-index:60; padding:16px 28px; border-radius:16px; border:none; background:var(--danger); color:#fff; cursor:pointer; font-weight:800; font-size:1.1rem; display:flex; flex-direction:column; gap:4px; align-items:center; opacity:0; transition:opacity 1s ease; touch-action:manipulation; user-select:none; -webkit-user-select:none; box-shadow:0 6px 24px rgba(255,92,114,.45); will-change:transform;}
+#fin-btn small{font-size:.9rem; font-weight:700; opacity:.9; font-family:ui-monospace,Menlo,Consolas,monospace;}
+#fin-btn.on{opacity:1;}
 </style>
 </head>
 <body>
@@ -355,12 +364,15 @@ function handleData(msg){
   else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
   else if(msg.type === 'level6'){ if(myRole === 2) startLevel6(); }
   else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
-  else if(msg.type === 'space'){ if(myRole === 2){ spView = msg.payload; spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
+  else if(msg.type === 'space'){ if(myRole === 2 && !finStarted){ spView = msg.payload; spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
   else if(msg.type === 'spword'){ if(myRole === 1) spWord(msg.payload); }
   else if(msg.type === 'spdeath'){ if(myRole === 2) spClearBoard(); }
   else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
+  else if(msg.type === 'finale'){ startFinale(); }
+  else if(msg.type === 'finclick'){ if(myRole === 1 && finStarted && !finDone && finN > 0) finApply(finN - 1); }
+  else if(msg.type === 'finn'){ if(myRole === 2 && finStarted) finSet(msg.payload.n, msg.payload.ms); }
 }
 
 function pressReady(){
@@ -402,7 +414,7 @@ function fmtTime(ms){
 function startTimer(){
   gameT0 = performance.now();
   const el = $('game-timer'); el.style.display = 'block';
-  const tick = () => { el.textContent = fmtTime(performance.now() - gameT0); requestAnimationFrame(tick); };
+  const tick = () => { if(timerStop !== null){ el.textContent = fmtTime(timerStop); return; } el.textContent = fmtTime(performance.now() - gameT0); requestAnimationFrame(tick); };
   tick();
 }
 function startGame(){
@@ -1231,14 +1243,19 @@ function spBubble(g, s){
   });
   g.textBaseline = 'alphabetic';
 }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null}; }
 function spPudStep(p, dt){
   if(!p) return;
   if(p.flee){ p.flee.t += dt; p.x += p.flee.vx * dt; p.y += p.flee.vy * dt; p.flee.vx *= 1.05; p.flee.vy *= 1.05; return; }
   p.age += dt; if(p.flash > 0) p.flash -= dt;
   if(p.dead >= 0){ p.dead += dt; return; }
   if(p.age < 2.8){ p.y = -60 + (p.ty + 60) * spEase(Math.min(1, p.age / 2.8)); return; }
-  const frac = 1 - p.hp / p.max, cx = SP_W / 2, cy = SP_H / 2, rad = 175;
+  const frac = 1 - p.hp / p.max, cx = SP_W / 2, cy = SP_H / 2, rad = 120; // 120 keeps the 3x sprite fully inside the 480x480 arena
+  if(!p.on){ // walk to the ring instead of teleporting onto it
+    const tx = cx + Math.cos(p.ang) * rad, ty = cy + Math.sin(p.ang) * rad, dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), st = 70 * dt;
+    if(d <= st){ p.x = tx; p.y = ty; p.on = true; } else { p.x += dx / d * st; p.y += dy / d * st; }
+    return;
+  }
   p.ang += (0.35 + frac * 1.15) * dt;
   p.x = cx + Math.cos(p.ang) * rad;
   p.y = cy + Math.sin(p.ang) * rad;
@@ -1257,7 +1274,7 @@ function spPudDraw(g, p, ship, T){
   const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#f2a93a'); bg.addColorStop(.45, '#ffe6ab'); bg.addColorStop(1, '#e7962e');
   body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
   if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
-  g.beginPath(); g.moveTo(-30, -4); g.quadraticCurveTo(0, -23, 30, -4); g.lineTo(30, 0); g.quadraticCurveTo(26, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-24, 5, -28, -1); g.closePath();
+  g.beginPath(); g.moveTo(-29.4, -11); g.quadraticCurveTo(0, -22.8, 29.4, -11); g.lineTo(30, 0); g.quadraticCurveTo(26, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-24, 5, -28, -1); g.closePath();
   const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#eb7f10'); ig.addColorStop(1, '#b8560c');
   g.fillStyle = ig; g.fill();
   g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -8, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
@@ -1294,7 +1311,7 @@ function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
     s.dying.t += dt; spPudStep(s.pud, dt);
-    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss){ n.pud = spPud(); n.bossT = 99; n.ship.y = SP_H - 100; } sp = n; }
+    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss){ n.pud = (s.pud && s.pud.dead >= 0) ? s.pud : spPud(); n.bossT = 99; n.ship.y = SP_H - 100; } sp = n; }
     return;
   }
   if(s.bubble){
@@ -1449,7 +1466,7 @@ function spDraw(g, s){
       g.beginPath(); g.moveTo(dy.x + Math.cos(an) * d * .6, dy.y + Math.sin(an) * d * .6); g.lineTo(dy.x + Math.cos(an) * d, dy.y + Math.sin(an) * d); g.stroke();
     }
     g.globalAlpha = 1;
-  }else if(dy.t >= .8) ship(W / 2, H / 2, 0, Math.min(1, (dy.t - .8) / .5), 0);
+  }else if(dy.t >= .8) ship(W / 2, s.boss ? H - 100 : H / 2, 0, Math.min(1, (dy.t - .8) / .5), 0);
   if(!dy) spBubble(g, s);
 }
 function spLoop(){
@@ -1460,6 +1477,7 @@ function spLoop(){
     while(spAcc >= SP_DT){ spStep(SP_DT); spAcc -= SP_DT; }
     spDraw($('space-cv-1').getContext('2d'), sp);
     send('space', sp);
+    if(sp.boss && sp.pud && sp.pud.dead > 1.3 && !finStarted){ send('finale', {}); startFinale(); return; }
     requestAnimationFrame(f);
   };
   requestAnimationFrame(f);
@@ -1485,6 +1503,77 @@ function spBossStart(){
   const old = sp.ship, n = spFresh(old.c, true);
   Object.assign(n.ship, {x: old.x, y: SP_H - 100, a: old.a, cd: old.cd, mv: old.mv});
   n.bossT = 0; n.pud = spPud(); sp = n;
+}
+
+// --- Finale: after the boss dies, wipe everything, center the timer, then both players mash the button ---
+let finStarted = false, finN = 200, finDone = false, timerStop = null, finBtn = null, finLast = 0, finVx = 1, finVy = 1, finX = 0, finY = 0, finMoving = false;
+function startFinale(){
+  if(finStarted) return;
+  finStarted = true; finN = 200; spActive = false; spLoopId++;
+  const scr = document.querySelector('.screen.active');
+  const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
+  flash.animate([{opacity:0}, {opacity:.95, offset:.15}, {opacity:0}], {duration:900, easing:'ease-out'}).onfinish = () => flash.remove();
+  const kids = scr ? Array.from(scr.children).filter(el => el.getBoundingClientRect().height > 0) : [];
+  let end = 900;
+  kids.forEach((el, i) => {
+    const dx = (Math.random() - .5) * 700, dy = 700 + Math.random() * 500, rot = (Math.random() - .5) * 140, delay = 250 + i * 140;
+    el.animate([
+      {transform:'translate(0,0) rotate(0deg)', opacity:1},
+      {transform:'translate(-6px,3px) rotate(-1deg)', opacity:1, offset:.08},
+      {transform:'translate(6px,-3px) rotate(1deg)', opacity:1, offset:.16},
+      {transform:'translate(-5px,-2px) rotate(-1deg)', opacity:1, offset:.24},
+      {transform:'translate(5px,2px) rotate(1deg) scale(1.03)', opacity:1, offset:.32, easing:'ease-in'},
+      {transform:`translate(${dx}px,${dy}px) rotate(${rot}deg) scale(.7)`, opacity:0}
+    ], {duration:1700, delay, easing:'linear', fill:'both'});
+    end = Math.max(end, delay + 1700);
+  });
+  setTimeout(() => {
+    kids.forEach(el => el.style.display = 'none');
+    document.body.style.transition = 'background 2.5s ease'; document.body.style.background = '#05060a';
+    const t = $('game-timer'), r = t.getBoundingClientRect();
+    t.style.top = r.top + 'px'; t.style.transform = 'translate(-50%,0)'; void t.offsetWidth;
+    t.classList.add('fin');
+    t.style.top = '42%'; t.style.transform = 'translate(-50%,-50%)'; t.style.fontSize = 'min(4rem,12vw)';
+    setTimeout(finShowButton, 3600);
+  }, end + 300);
+}
+function finText(){ const n = $('fin-n'); if(n) n.textContent = finN + ' remaining'; }
+function finShowButton(){
+  if(finDone) return;
+  const b = document.createElement('button'); b.id = 'fin-btn';
+  b.innerHTML = '<span>Stop the timer</span><small id="fin-n"></small>';
+  document.body.appendChild(b); finBtn = b; finText();
+  const tr = $('game-timer').getBoundingClientRect();
+  finX = (innerWidth - b.offsetWidth) / 2; finY = Math.max(0, Math.min(innerHeight - b.offsetHeight - 10, tr.bottom + 36));
+  b.style.transform = `translate(${finX}px,${finY}px)`;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); finClick(); });
+  requestAnimationFrame(() => b.classList.add('on'));
+  finLast = performance.now(); requestAnimationFrame(finLoop);
+}
+function finLoop(now){
+  if(!finBtn) return;
+  const dt = Math.min(.05, (now - finLast) / 1000); finLast = now;
+  if(finN <= 100 && finN > 0){ // DVD-logo bounce, faster as the count drops
+    if(!finMoving){ finMoving = true; finVx = Math.random() < .5 ? -1 : 1; finVy = Math.random() < .5 ? -1 : 1; }
+    const k = (100 - finN) / 100, spd = (110 + 1400 * k * k) * .7071;
+    const mx = Math.max(0, innerWidth - finBtn.offsetWidth), my = Math.max(0, innerHeight - finBtn.offsetHeight);
+    finX += finVx * spd * dt; finY += finVy * spd * dt;
+    if(finX < 0){ finX = 0; finVx = 1; } else if(finX > mx){ finX = mx; finVx = -1; }
+    if(finY < 0){ finY = 0; finVy = 1; } else if(finY > my){ finY = my; finVy = -1; }
+    finBtn.style.transform = `translate(${finX}px,${finY}px)`;
+  }
+  requestAnimationFrame(finLoop);
+}
+function finClick(){ if(finDone || finN <= 0) return; if(myRole === 1) finApply(finN - 1); else send('finclick', {}); }
+function finApply(n){ if(finDone) return; const ms = n <= 0 ? performance.now() - gameT0 : 0; send('finn', {n, ms}); finSet(n, ms); }
+function finSet(n, ms){ if(n > finN) return; finN = n; finText(); if(n <= 0) finWin(ms); }
+function finWin(ms){
+  if(finDone) return; finDone = true; timerStop = ms;
+  if(finBtn){ finBtn.remove(); finBtn = null; }
+  const t = $('game-timer'); t.textContent = fmtTime(ms);
+  t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
+  const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
+  setTimeout(() => m.classList.add('on'), 700);
 }
 function startSpace(){
   if(spStarted) return;
@@ -1557,7 +1646,7 @@ const KEYS = {ArrowLeft:'l', KeyA:'l', ArrowRight:'r', KeyD:'r', ArrowUp:'u', Ke
 document.addEventListener('keydown', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 1; syncInput(); });
 document.addEventListener('keyup', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 0; syncInput(); });
 document.addEventListener('keydown', e => {
-  if(e.code !== 'Enter' || myRole !== 2 || e.repeat) return;
+  if(e.code !== 'Enter' || myRole !== 2 || e.repeat || finStarted) return;
   if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   const sec = $('puzzle2-section'); if(!sec || !sec.classList.contains('visible')) return;
   e.preventDefault(); submitPattern();
