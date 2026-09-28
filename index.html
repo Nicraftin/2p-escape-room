@@ -15,13 +15,13 @@
 }
 :root[data-theme="light"]{ --bg:#f4f5fb; --panel:#fff; --panel2:#eceefb; --text:#1b1c24; --sub:#63647a; }
 *{box-sizing:border-box;}
-html,body{height:100%;margin:0;}
-body{
+html{height:100%;}
+body{margin:0;
   background:var(--bg); color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   display:flex; align-items:center; justify-content:center; min-height:100%; padding:20px;
-  padding-top:calc(20px + env(safe-area-inset-top,0px));
-  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  padding-top:calc(56px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(56px + env(safe-area-inset-bottom,0px));
 }
 .screen{display:none; width:100%; max-width:520px; text-align:center;}
 .screen.active{display:block;}
@@ -77,13 +77,22 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .pad{display:flex; gap:16px; justify-content:center;}
 .pad-btn{width:64px; height:64px;}
 .pad-btn.held{background:var(--accent); border-color:var(--accent); color:#fff;}
-.tetris-grid.removable .grid-cell.filled{cursor:pointer;}
 #plat{position:relative; margin:0 auto; background:#000; border-radius:8px; overflow:hidden; box-shadow:0 0 0 2px var(--panel2);}
 #plat > div, #plat-blocks > div{position:absolute;}
 #plat .pc{background:#1c1e29; border-radius:4px;}
 #plat .pb{box-shadow:inset 0 0 0 1px rgba(0,0,0,.3);}
 #plat .pledge{background:#fff;}
-#plat .pexit{display:flex; align-items:center; justify-content:center; color:#2fb86f; font-family:Georgia,'Times New Roman',serif; letter-spacing:.03em;}
+#plat .pexit .pdoor{position:absolute; left:10%; right:10%; top:4%; bottom:0; border-radius:50% 50% 0 0 / 100% 100% 0 0; overflow:hidden;
+  background:radial-gradient(ellipse at 50% 100%, #d9ffea 0%, #3ddc97 28%, #0d4a33 62%, #02100a 100%);
+  box-shadow:0 0 0 3px #3ddc97, 0 0 16px 3px rgba(61,220,151,.65), inset 0 0 14px rgba(0,0,0,.55);
+  animation:exitPulse 2.4s ease-in-out infinite;}
+#plat .pexit .pdoor::before{content:''; position:absolute; left:50%; bottom:-10%; width:70%; height:130%; transform:translateX(-50%);
+  background:linear-gradient(to top, rgba(255,255,255,.75), rgba(255,255,255,0)); border-radius:50% 50% 0 0 / 100% 100% 0 0; filter:blur(4px);
+  animation:exitRise 2.4s ease-in-out infinite;}
+@keyframes exitPulse{ 0%,100%{box-shadow:0 0 0 3px #3ddc97, 0 0 12px 2px rgba(61,220,151,.5), inset 0 0 14px rgba(0,0,0,.55);} 50%{box-shadow:0 0 0 3px #7dffc4, 0 0 24px 6px rgba(61,220,151,.85), inset 0 0 14px rgba(0,0,0,.55);} }
+@keyframes exitRise{ 0%,100%{opacity:.45; transform:translateX(-50%) translateY(6%);} 50%{opacity:.95; transform:translateX(-50%) translateY(-4%);} }
+#plat .pplayer.respawn{animation:pfRespawn .7s linear;}
+@keyframes pfRespawn{ 0%{background:#ff5c72; opacity:0;} 20%{opacity:1;} 40%{opacity:.2;} 60%{opacity:1;} 80%{opacity:.4;} 100%{background:#fff; opacity:1;} }
 #plat .pplayer{left:0; top:0; background:#fff; border-radius:2px; will-change:transform;}
 #plat-blocks{position:absolute; left:0; top:0; width:100%; height:100%;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
@@ -174,7 +183,6 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
       <button class="rot-btn pad-btn" id="pbtn-u" onpointerdown="btnHold('u')" onpointerup="btnRelease('u')" onpointerleave="btnRelease('u')" onpointercancel="btnRelease('u')" oncontextmenu="return false" aria-label="Jump"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15l7-7 7 7"/></svg></button>
       <button class="rot-btn pad-btn" id="pbtn-r" onpointerdown="btnHold('r')" onpointerup="btnRelease('r')" onpointerleave="btnRelease('r')" onpointercancel="btnRelease('r')" oncontextmenu="return false" aria-label="Right"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
-    <div class="hint" style="margin-top:12px; font-size:.85rem;">Arrow keys / WASD also work · click a placed piece to remove it</div>
   </div></div>
   <div id="puzzle3-section" class="reveal"><div class="reveal-inner"><div class="maze-stage"><div class="maze" id="maze"></div></div></div></div>
 </div>
@@ -476,7 +484,6 @@ function buildGrid(size){
     for(let c = 0; c < size; c++){
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
-      cell.addEventListener('click', () => removePieceAt(r, c));
       grid.appendChild(cell);
       rowArr.push(cell);
     }
@@ -664,15 +671,6 @@ function resetBoard(){
   sendBoard();
 }
 function sendBoard(){ if(platMode) send('board', {board: boardState.map(r => r.slice())}); }
-function removePieceAt(r, c){
-  if(!platMode || boardLocked || dragState) return;
-  const id = pieceIdGrid[r][c]; if(!id) return;
-  for(let rr = 0; rr < gridSize; rr++) for(let cc = 0; cc < gridSize; cc++) if(pieceIdGrid[rr][cc] === id){
-    pieceIdGrid[rr][cc] = 0; boardState[rr][cc] = null;
-    gridCellEls[rr][cc].style.background = ''; gridCellEls[rr][cc].classList.remove('filled');
-  }
-  sendBoard();
-}
 function shakeGrid(){
   const grid = $('tetris-grid');
   grid.classList.add('shake');
@@ -685,7 +683,8 @@ function advanceToColorStage(){
   $('light').classList.add('needs-color');
 }
 function submitPattern(){
-  if(boardLocked || platMode) return;
+  if(boardLocked) return;
+  if(platMode){ resetBoard(); return; } // platformer level: Submit clears the whole path at once
   const stage = stageIndex;
   send('submitted', {board: boardState.map(r => r.slice()), stage});
   boardLocked = true;
@@ -852,10 +851,10 @@ function mazeWin(){
 }
 
 // --- Level 5: platformer (simulated on Player 1's screen, driven by Player 2's controls) ---
-// Arena is 10x10 tiles, floor at the bottom. Tetris grid = right 5x5 block (cols 5-9, rows 5-9); fixed ledge = cols 0-4, row 4.
-const PF_N = 10, PF_S = 0.8, PF_G = 30, PF_SPEED = 4, PF_DT = 1/120, PF_EPS = 1e-6;
+// Arena is 10 wide x 8 tall (PF_H) tiles, floor at the bottom. Tetris grid = right 5x5 block (cols 5-9, rows PF_OY..PF_OY+4); fixed ledge = cols 0-4, row PF_OY-1 (2 tiles of headroom above it).
+const PF_N = 10, PF_H = 8, PF_OY = 3, PF_S = 0.8, PF_G = 30, PF_SPEED = 4, PF_DT = 1/120, PF_EPS = 1e-6;
 const PF_JUMP = Math.sqrt(2 * PF_G * 1.2) + PF_G * PF_DT / 2; // 1.2 tiles high
-const PF_LEDGE = [0,4,5,5], PF_EXIT = [1,3,3,4];
+const PF_LEDGE = [0,2,5,3], PF_EXIT = [1,1,3,2];
 let pf = null, pfIn = {l:0,r:0,u:0}, pfBoard = null, pfSolid = [PF_LEDGE];
 let pfStarted = false, pfActive = false, pfT = 50, pfEl = null, pfLoopId = 0, pfLast = 0, pfAcc = 0;
 function pfOverlaps(x, y, r){ return x < r[2]-PF_EPS && x+PF_S > r[0]+PF_EPS && y < r[3]-PF_EPS && y+PF_S > r[1]+PF_EPS; }
@@ -866,33 +865,38 @@ function pfMk(cls, x, y, w, h, parent){
 }
 function pfComputeSolid(){
   pfSolid = [PF_LEDGE];
-  (pfBoard || []).forEach((row, r) => row.forEach((v, c) => { if(v) pfSolid.push([5+c, 5+r, 6+c, 6+r]); }));
+  (pfBoard || []).forEach((row, r) => row.forEach((v, c) => { if(v) pfSolid.push([5+c, PF_OY+r, 6+c, PF_OY+r+1]); }));
 }
 function pfDrawBlocks(){
   const bl = $('plat-blocks'); if(!bl) return;
   bl.innerHTML = '';
   (pfBoard || []).forEach((row, r) => row.forEach((v, c) => {
-    if(v) pfMk('pb', (5+c)*pfT, (5+r)*pfT, pfT, pfT, bl).style.background = v;
+    if(v) pfMk('pb', (5+c)*pfT, (PF_OY+r)*pfT, pfT, pfT, bl).style.background = v;
   }));
 }
 function pfSetBoard(board){
   pfBoard = board; pfComputeSolid();
   if(!pf) return;
   pfDrawBlocks();
-  let g = 0; while(g++ < 400 && pfSolid.some(r => pfOverlaps(pf.x, pf.y, r))) pf.y -= 0.05; // lift player out of a newly placed block
+  if(pfSolid.some(r => pfOverlaps(pf.x, pf.y, r))) pfRespawn(); // a block landed on the player: kill and send back to the start
+}
+function pfRespawn(){
+  pf.x = 2.1; pf.y = PF_H - PF_S; pf.vx = 0; pf.vy = 0; pf.grounded = true;
+  pfDraw();
+  pfEl.classList.remove('respawn'); void pfEl.offsetWidth; pfEl.classList.add('respawn');
 }
 function buildPlatformer(){
   pfT = Math.max(24, Math.floor(Math.min(520, $('screen-game1').clientWidth) / PF_N));
   const T = pfT, el = $('plat'); el.innerHTML = '';
-  el.style.width = el.style.height = (PF_N * T) + 'px';
-  for(let r = 0; r < 5; r++) for(let c = 0; c < 5; c++) pfMk('pc', (5+c)*T+2, (5+r)*T+2, T-4, T-4);
+  el.style.width = (PF_N * T) + 'px'; el.style.height = (PF_H * T) + 'px';
+  for(let r = 0; r < 5; r++) for(let c = 0; c < 5; c++) pfMk('pc', (5+c)*T+2, (PF_OY+r)*T+2, T-4, T-4);
   const bl = document.createElement('div'); bl.id = 'plat-blocks'; el.appendChild(bl);
   pfMk('pledge', PF_LEDGE[0]*T, PF_LEDGE[1]*T, (PF_LEDGE[2]-PF_LEDGE[0])*T, (PF_LEDGE[3]-PF_LEDGE[1])*T);
   const ex = pfMk('pexit', PF_EXIT[0]*T, PF_EXIT[1]*T, (PF_EXIT[2]-PF_EXIT[0])*T, (PF_EXIT[3]-PF_EXIT[1])*T);
-  ex.style.fontSize = (T * 0.6) + 'px'; ex.textContent = 'EXIT';
+  ex.innerHTML = '<div class="pdoor"></div>';
   pfEl = pfMk('pplayer', 0, 0, PF_S*T, PF_S*T);
   pfEl.innerHTML = '<svg viewBox="0 0 24 24" width="100%" height="100%"><circle cx="8.5" cy="9" r="1.9" fill="#000"/><circle cx="15.5" cy="9" r="1.9" fill="#000"/><path d="M6.5 14.5Q12 20.5 17.5 14.5" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/></svg>';
-  pf = {x:2.1, y:PF_N - PF_S, vx:0, vy:0, grounded:true};
+  pf = {x:2.1, y:PF_H - PF_S, vx:0, vy:0, grounded:true};
   pfComputeSolid(); pfDrawBlocks(); pfDraw();
 }
 function pfDraw(){ pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`; }
@@ -911,7 +915,7 @@ function pfStep(){
     if(s.vy > 0){ s.y = r[1] - PF_S; s.grounded = true; } else if(s.vy < 0){ s.y = r[3]; }
     s.vy = 0;
   }
-  if(s.y >= PF_N - PF_S){ s.y = PF_N - PF_S; s.vy = 0; s.grounded = true; }
+  if(s.y >= PF_H - PF_S){ s.y = PF_H - PF_S; s.vy = 0; s.grounded = true; }
 }
 function pfLoop(){
   const id = ++pfLoopId; pfActive = true; pfLast = performance.now(); pfAcc = 0;
@@ -949,8 +953,6 @@ function startLevel5(){
   platMode = true;
   mzActive = false; mzLoopId++; // freeze the maze
   resetBoard();                 // fresh grid to build the path on (also syncs to Player 1)
-  $('submit-btn').disabled = true;
-  $('tetris-grid').classList.add('removable');
   $('controls-section').classList.add('visible');
   setTimeout(() => $('controls-section').scrollIntoView({behavior:'smooth', block:'center'}), 600);
 }
