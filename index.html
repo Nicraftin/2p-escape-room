@@ -67,13 +67,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .tetris-grid.shake{animation:shake .6s ease-in-out;}
 .grid-cell{transition:opacity .3s ease;}
 .grid-cell.cell-hidden{opacity:0;}
+@keyframes wrongClear{ 30%{background:var(--danger); transform:scale(1);} 100%{background:var(--danger); transform:scale(.4); opacity:0;} }
+.grid-cell.wrong-fade{animation:wrongClear .6s ease-in forwards;}
+@keyframes greenFlash{ 0%,50%,100%{background:var(--panel2); box-shadow:none;} 20%,70%{background:var(--accent2); box-shadow:0 0 22px 4px rgba(61,220,151,.7);} }
+.tetris-grid.flash-green{animation:greenFlash 1s ease-in-out;}
 #puzzle1-info{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
 #puzzle1-info.visible{max-height:600px; opacity:1; margin-top:24px;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
-#puzzle1-info{display:flex; gap:20px; justify-content:center; align-items:flex-start; flex-wrap:wrap;}
-#puzzle1-info .mini-grid{margin:0;}
+.info-row{display:flex; gap:20px; justify-content:center; align-items:flex-start;}
+.info-row .mini-grid{margin:0;}
+#stage2-row{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
+#stage2-row.visible{max-height:200px; opacity:1; margin-top:24px;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
 </style>
@@ -112,9 +118,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
   <div id="puzzle1-info">
-    <div class="mini-grid" id="heart-preview"></div>
-    <div class="mini-grid" id="color-preview" style="display:none;"></div>
-    <div class="mini-grid" id="submit-preview"></div>
+    <div class="info-row">
+      <div class="mini-grid" id="heart-preview"></div>
+      <div class="mini-grid" id="submit-preview-0"></div>
+    </div>
+    <div class="info-row" id="stage2-row">
+      <div class="mini-grid" id="color-preview"></div>
+      <div class="mini-grid" id="submit-preview-1"></div>
+    </div>
   </div>
   <button id="skip-btn" class="big-btn" onclick="skipPuzzle1()">Skip to next puzzle (test)</button>
 </div>
@@ -242,7 +253,7 @@ function handleData(msg){
   else if(msg.type === 'press'){ if(myRole === 2 && !pieceOnLight) lightUp(msg.payload.color); }
   else if(msg.type === 'win'){ completePuzzle1(false); }
   else if(msg.type === 'stage2'){ revealColorPattern(); }
-  else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board); }
+  else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board, msg.payload.stage); }
   else if(msg.type === 'lightblock'){ setShelfBlocked(msg.payload.blocked); }
   else if(msg.type === 'skiptetris1'){ if(myRole === 2){ advanceToColorStage(); send('stage2', {}); } }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
@@ -343,7 +354,7 @@ function unlockPuzzle2(){
 }
 function revealColorPattern(){
   if(myRole !== 1) return;
-  $('color-preview').style.display = 'grid';
+  $('stage2-row').classList.add('visible');
 }
 function buildColorPreview(){
   const el = $('color-preview');
@@ -357,18 +368,20 @@ function buildColorPreview(){
   }));
 }
 function buildSubmitPreview(){
-  const el = $('submit-preview');
-  el.style.gridTemplateColumns = `repeat(5, 20px)`;
-  el.style.gridTemplateRows = `repeat(5, 20px)`;
-  for(let i = 0; i < 25; i++){
-    const d = document.createElement('div');
-    d.className = 'mini-cell';
-    el.appendChild(d);
-  }
+  [0, 1].forEach(n => {
+    const el = $('submit-preview-' + n);
+    el.style.gridTemplateColumns = `repeat(5, 20px)`;
+    el.style.gridTemplateRows = `repeat(5, 20px)`;
+    for(let i = 0; i < 25; i++){
+      const d = document.createElement('div');
+      d.className = 'mini-cell';
+      el.appendChild(d);
+    }
+  });
 }
-function renderSubmission(board){
+function renderSubmission(board, stage){
   if(myRole !== 1) return;
-  const cells = $('submit-preview').children;
+  const cells = $('submit-preview-' + stage).children;
   board.forEach((row, r) => row.forEach((v, c) => { cells[r * 5 + c].style.background = v || ''; }));
 }
 function buildHeartPreview(){
@@ -407,7 +420,6 @@ function buildGrid(size){
     for(let c = 0; c < size; c++){
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
-      cell.textContent = String.fromCharCode(65 + c) + (r + 1);
       grid.appendChild(cell);
       rowArr.push(cell);
     }
@@ -437,8 +449,10 @@ function buildTray(){
   });
 }
 
+let boardLocked = false;
 function beginDrag(e, offsets, color, fromCharged){
   e.preventDefault();
+  if(boardLocked) return;
   const maxR = Math.max(...offsets.map(o => o[0]));
   const maxC = Math.max(...offsets.map(o => o[1]));
   const ghost = document.createElement('div');
@@ -511,7 +525,10 @@ function onDragUp(e){
   } else {
     const ok = tryPlace(e.clientX, e.clientY, dragState.offsets, dragState.color);
     dragState.ghost.remove();
-    if(!ok && dragState.fromCharged) placeChargedPiece(dragState.offsets, dragState.color);
+    if(dragState.fromCharged){
+      if(ok) setPieceOnLight(false);
+      else placeChargedPiece(dragState.offsets, dragState.color);
+    }
   }
   clearPreview();
   dragState = null;
@@ -563,9 +580,9 @@ function placeChargedPiece(offsets, color){
   });
   el.addEventListener('mousedown', e => {
     e.preventDefault();
+    if(boardLocked) return;
     chargedPiece = null;
     el.remove();
-    setPieceOnLight(false);
     beginDrag(e, offsets, color, true);
   });
   light.appendChild(el);
@@ -583,7 +600,7 @@ function resetBoard(){
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
     boardState[r][c] = null;
     gridCellEls[r][c].style.background = '';
-    gridCellEls[r][c].classList.remove('filled');
+    gridCellEls[r][c].classList.remove('filled','wrong-fade');
   }
 }
 function shakeGrid(){
@@ -598,17 +615,29 @@ function advanceToColorStage(){
   $('light').classList.add('needs-color');
 }
 function submitPattern(){
-  send('submitted', {board: boardState.map(r => r.slice())});
-  const target = STAGE_PATTERNS[stageIndex];
-  if(!patternMatches(target)){ shakeGrid(); resetBoard(); return; }
-  if(stageIndex === 0){
-    advanceToColorStage();
-    send('stage2', {});
-    revealColorPattern();
-  } else {
-    send('finalwin', {});
-    show('screen-win');
+  if(boardLocked) return;
+  const stage = stageIndex;
+  send('submitted', {board: boardState.map(r => r.slice()), stage});
+  boardLocked = true;
+  if(!patternMatches(STAGE_PATTERNS[stage])){
+    shakeGrid();
+    document.querySelectorAll('.grid-cell.filled').forEach(c => c.classList.add('wrong-fade'));
+    setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+    return;
   }
+  const grid = $('tetris-grid');
+  grid.classList.add('flash-green');
+  setTimeout(() => {
+    grid.classList.remove('flash-green');
+    if(stage === 0){
+      advanceToColorStage();
+      send('stage2', {});
+    } else {
+      send('finalwin', {});
+      show('screen-win');
+    }
+    boardLocked = false;
+  }, 1050);
 }
 
 let chargedPiece = null;
