@@ -168,6 +168,8 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #fin-btn.on{opacity:1;}
 #fin-count{position:fixed; left:50%; transform:translateX(-50%); z-index:55; color:#fff; opacity:0; transition:opacity 1s ease; pointer-events:none; font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; font-size:1.05rem; text-shadow:0 0 10px rgba(255,92,114,.6);}
 #fin-count.on{opacity:.9;}
+#fin-return{position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:60; padding:14px 32px; border-radius:14px; border:none; background:var(--accent); color:#fff; font-size:1.1rem; font-weight:600; cursor:pointer; opacity:0; transition:opacity 1.2s ease;}
+#fin-return.on{opacity:1;}
 .fin-shard{position:fixed; left:0; top:0; width:10px; height:10px; border-radius:3px; background:var(--danger); z-index:65; pointer-events:none;}
 </style>
 </head>
@@ -1362,10 +1364,18 @@ function spPudDraw(g, p, ship, T){
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color, boss){
-  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null, deaths:0, leaving:false, tet:null};
+  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, edge:null, words:[], bubble:null, deaths:0, leaving:false, tet:null};
 }
 function spEvent(){
   const s = sp, sh = s.ship;
+  if(s.boss && !s.edge){ // edge spikes: 20% chance, 30% once the boss is at 1/3 health
+    const P = s.pud, low = !!(P && P.dead < 0 && P.hp <= P.max / 3);
+    if(Math.random() < (low ? .3 : .2)){
+      const ds = {left: sh.x, right: SP_W - sh.x, top: sh.y, bottom: SP_H - sh.y};
+      s.edge = {side: Object.keys(ds).reduce((a, b) => ds[b] < ds[a] ? b : a), t: 0};
+      return;
+    }
+  }
   const half = !!(s.pud && s.pud.dead < 0 && s.pud.hp <= s.pud.max * 2 / 3); // boss phase 2 (2/3 health)
   let k = Math.floor(Math.random() * (half ? 5 : 4));
   if(k === 4 && s.tet) k = Math.floor(Math.random() * 4);
@@ -1445,6 +1455,7 @@ function spStep(dt){
   }
   for(const l of s.lasers) l.t += dt;
   for(const f of s.flashes) f.t += dt;
+  if(s.edge){ s.edge.t += dt; if(s.edge.t >= 5.6) s.edge = null; }
   if(s.tet){ s.tet.t += dt; if(s.tet.done){ s.tet.d += dt; if(s.tet.d >= 1) s.tet = null; } }
   s.lasers = s.lasers.filter(l => l.t < 5.6);
   s.flashes = s.flashes.filter(f => f.t < 3);
@@ -1454,6 +1465,7 @@ function spStep(dt){
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
+  if(s.edge && s.edge.t >= 5){ const E = s.edge, dist = E.side === 'left' ? sh.x : E.side === 'right' ? SP_W - sh.x : E.side === 'top' ? sh.y : SP_H - sh.y; if(dist - 8 < SP_H / 4 * Math.min(1, (E.t - 5) / .12)) cause = 'spikes'; }
   if(s.tet && !s.tet.done && s.tet.t >= 5) cause = 'tetris';
   if(s.pud && s.pud.dead < 0 && spPudHit(s.pud, sh.x, sh.y, 9)) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0 && !s.pud.flee){ const fa = Math.atan2(s.pud.y - SP_H / 2, s.pud.x - SP_W / 2) || (Math.random() * Math.PI * 2); s.pud.flee = {t:0, vx: Math.cos(fa) * 240, vy: Math.sin(fa) * 240}; } } send('spdeath', {}); }
@@ -1486,6 +1498,25 @@ function spDraw(g, s){
     }
     g.globalAlpha = 1;
   });
+  if(s.edge){
+    const E = s.edge, D = SP_H / 4, hor = E.side === 'top' || E.side === 'bottom', L = hor ? W : H;
+    g.save(); g.globalAlpha = sc;
+    if(E.side === 'bottom'){ g.translate(0, H); g.scale(1, -1); }
+    else if(E.side === 'left') g.transform(0, 1, 1, 0, 0, 0);
+    else if(E.side === 'right') g.transform(0, 1, -1, 0, W, 0);
+    const p = Math.min(1, E.t / 5), fade = E.t < 5 ? 1 : Math.max(0, (5.6 - E.t) / .2 > 1 ? 1 : (5.6 - E.t) / .2);
+    const gl = g.createLinearGradient(0, 0, 0, 70);
+    gl.addColorStop(0, 'rgba(255,92,114,' + (E.t < 5 ? .35 + .3 * Math.sin(E.t * (6 + 14 * p)) : .8) + ')'); gl.addColorStop(1, 'rgba(255,92,114,0)');
+    g.globalAlpha = sc * fade; g.fillStyle = gl; g.fillRect(0, 0, L, 70);
+    if(E.t >= 5){
+      const depth = D * Math.min(1, (E.t - 5) / .12), n = 12, w = L / n;
+      g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 10;
+      g.beginPath();
+      for(let i = 0; i < n; i++){ g.moveTo(i * w, 0); g.lineTo(i * w + w / 2, depth); g.lineTo((i + 1) * w, 0); }
+      g.fill();
+    }
+    g.restore();
+  }
   for(const e of s.statics) at(e.x, e.y, () => {
     const sp0 = Math.min(1, e.age / .7);
     if(sp0 < 1){
@@ -1704,6 +1735,8 @@ function finWin(ms){
   t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
   const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
   setTimeout(() => m.classList.add('on'), 2600);
+  const rb = document.createElement('button'); rb.id = 'fin-return'; rb.textContent = 'Return'; rb.onclick = () => location.reload(); document.body.appendChild(rb);
+  setTimeout(() => rb.classList.add('on'), 2600);
 }
 function startSpace(){
   if(spStarted) return;
