@@ -132,6 +132,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .rot-btn:active{transform:scale(0.93);}
 @keyframes rotGlow{ 0%,100%{box-shadow:0 0 0 3px rgba(61,220,151,.5), 0 0 10px 2px rgba(61,220,151,.35);} 50%{box-shadow:0 0 0 4px rgba(61,220,151,.95), 0 0 24px 8px rgba(61,220,151,.75);} }
 #rotate-shelf .rot-btn.glow{border-color:var(--accent2); animation:rotGlow 1.3s ease-in-out infinite;}
+.sp-title{text-align:center; font-weight:800; font-size:1.15rem; margin-bottom:12px;}
+.sp-words{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px; min-height:38px;}
+.sp-word{padding:6px 14px; border-radius:8px; background:var(--panel2); color:var(--accent2); font-weight:800; letter-spacing:.15em; text-transform:uppercase;}
+.tetris-grid.letters .grid-cell{display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; padding:0;}
+.tetris-grid.letters .grid-cell.filled{color:#333;}
 .space-cv{display:block; width:100%; max-width:480px; height:auto; aspect-ratio:1; margin:0 auto; border-radius:12px; box-shadow:0 0 0 2px var(--panel2), 0 10px 30px rgba(0,0,0,.35);}
 </style>
 </head>
@@ -166,7 +171,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game1" class="screen">
-  <div id="space-section-1" class="reveal"><div class="reveal-inner"><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas></div></div>
+  <div id="space-section-1" class="reveal"><div class="reveal-inner"><div class="sp-title">Say three 5 letter words to summon me!</div><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-1"></div></div></div>
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
   <div id="rotate-shelf" class="reveal"><div class="reveal-inner"><div>
@@ -188,7 +193,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game2" class="screen">
-  <div id="space-section-2" class="reveal"><div class="reveal-inner"><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas></div></div>
+  <div id="space-section-2" class="reveal"><div class="reveal-inner"><div class="sp-title">Say three 5 letter words to summon me!</div><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas><div class="sp-words" id="sp-words-2"></div></div></div>
   <div class="light-row">
     <div class="light" id="light"></div>
   </div>
@@ -329,7 +334,8 @@ function handleData(msg){
   else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
   else if(msg.type === 'level6'){ if(myRole === 2) startLevel6(); }
   else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
-  else if(msg.type === 'space'){ if(myRole === 2) spDraw($('space-cv-2').getContext('2d'), msg.payload); }
+  else if(msg.type === 'space'){ if(myRole === 2){ spView = msg.payload; spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
+  else if(msg.type === 'spword'){ if(myRole === 1) spWord(msg.payload); }
   else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
@@ -735,6 +741,7 @@ function advanceToColorStage(){
 }
 function submitPattern(){
   if(boardLocked) return;
+  if(spMode){ spSubmit(); return; }
   if(platMode){ resetBoard(); return; } // platformer level: Submit clears the whole path at once
   const stage = stageIndex;
   const ok = patternMatches(STAGE_PATTERNS[stage]);
@@ -1056,17 +1063,108 @@ function startPlatformer(){
 // --- Level 7: space minigame (simulated on Player 1's side, drawn on both screens; Player 2's input arrives through pfIn) ---
 const SP_W = 480, SP_H = 480, SP_R = 12, SP_SPEED = 200, SP_ROT = 90, SP_BSPEED = 460, SP_CD = .25, SP_DT = 1/120, SP_LW = 36;
 let sp = null, spStarted = false, spActive = false, spLoopId = 0, spLast = 0, spAcc = 0;
-const SP_STARS = Array.from({length: 70}, (_, i) => [(i * 7919) % SP_W, (i * 104729) % SP_H, .4 + (i % 3) * .3]);
+const SP_WORDS = new Set(`abhor abort adept adios adopt aegis agios aglow befit begin begot below bijou blowy ceils chimp chino chips chops clops deist deity demos dinos dirty empty films filmy first fisty flops forty ghost gimps gipsy glory horst horsy`.split(' '));
+let spView = null, spMode = false, spWon = false;
+function spRng(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const spEase = p => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+const SP_BG = (() => {
+  const R = spRng(90210), neb = document.createElement('canvas'); neb.width = SP_W; neb.height = SP_H;
+  const n = neb.getContext('2d'); n.globalCompositeOperation = 'lighter';
+  const pal = ['120,60,220', '40,110,240', '30,200,200', '220,60,160'];
+  for(let i = 0; i < 14; i++){
+    const x = R() * SP_W, y = R() * SP_H, r = 70 + R() * 130, col = pal[Math.floor(R() * pal.length)];
+    for(const dx of [-SP_W, 0, SP_W]) for(const dy of [-SP_H, 0, SP_H]){
+      const gr = n.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      gr.addColorStop(0, `rgba(${col},.22)`); gr.addColorStop(1, `rgba(${col},0)`);
+      n.fillStyle = gr; n.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+    }
+  }
+  const tints = ['255,255,255', '180,210,255', '255,230,190'];
+  const layers = [[45, 5, 4, .7], [35, 12, 8, 1.1], [22, 26, 14, 1.7]].map(([cnt, vy, vx, sz]) =>
+    ({vy, vx, stars: Array.from({length: cnt}, () => ({x: R() * SP_W, y: R() * SP_H, sz: sz * (.6 + R() * .7), ph: R() * 6.28, sp: 1 + R() * 3, tint: tints[Math.floor(R() * 3)]}))}));
+  return {neb, layers, R: {sx: R() * 480, sy: R() * 480}};
+})();
+function spBackground(g, T){
+  const W = SP_W, H = SP_H;
+  g.fillStyle = '#04050c'; g.fillRect(0, 0, W, H);
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0a0620'); bg.addColorStop(1, '#03101f');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const ox = (T * 3) % W, oy = (T * 6) % H;
+  g.globalAlpha = .55 + .15 * Math.sin(T * .4);
+  for(const dx of [-W, 0]) for(const dy of [-H, 0]) g.drawImage(SP_BG.neb, ox + dx, oy + dy);
+  g.globalAlpha = 1;
+  // planet drifting slowly
+  const px = ((380 - T * 3) % (W + 160) + W + 160) % (W + 160) - 80, py = 110 + Math.sin(T * .1) * 10, pr = 34;
+  g.save(); g.translate(px, py);
+  g.strokeStyle = 'rgba(200,170,255,.25)'; g.lineWidth = 5; g.beginPath(); g.ellipse(0, 0, pr * 1.7, pr * .4, -.4, Math.PI, Math.PI * 2); g.stroke();
+  const pg = g.createRadialGradient(-pr * .4, -pr * .4, pr * .1, 0, 0, pr);
+  pg.addColorStop(0, '#9a7cff'); pg.addColorStop(.6, '#4a3aa8'); pg.addColorStop(1, '#0d0a2a');
+  g.fillStyle = pg; g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(0, 0, pr * 1.7, pr * .4, -.4, 0, Math.PI); g.stroke();
+  g.restore();
+  // parallax stars
+  for(const L of SP_BG.layers) for(const st of L.stars){
+    const x = ((st.x + T * L.vx) % W + W) % W, y = ((st.y + T * L.vy) % H + H) % H;
+    const a = .45 + .55 * Math.abs(Math.sin(T * st.sp + st.ph));
+    g.globalAlpha = a; g.fillStyle = `rgb(${st.tint})`;
+    g.beginPath(); g.arc(x, y, st.sz, 0, Math.PI * 2); g.fill();
+    if(st.sz > 1.3){ g.globalAlpha = a * .5; g.fillRect(x - st.sz * 3, y - .4, st.sz * 6, .8); g.fillRect(x - .4, y - st.sz * 3, .8, st.sz * 6); }
+  }
+  g.globalAlpha = 1;
+  // shooting stars
+  for(let i = 0; i < 2; i++){
+    const per = 6 + i * 3.7, u = T + i * 2.3, cyc = Math.floor(u / per), ph = (u % per) / per;
+    if(ph < .1){
+      const R = spRng(cyc * 31 + i * 7), x0 = R() * W, y0 = R() * H * .6, an = .5 + R() * .5, p = ph / .1, d = p * 160;
+      const x = x0 + Math.cos(an) * d, y = y0 + Math.sin(an) * d;
+      const tg = g.createLinearGradient(x, y, x - Math.cos(an) * 60, y - Math.sin(an) * 60);
+      tg.addColorStop(0, `rgba(255,255,255,${1 - p})`); tg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.strokeStyle = tg; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x - Math.cos(an) * 60, y - Math.sin(an) * 60); g.stroke();
+    }
+  }
+}
+function spShowWords(id, words){
+  const el = $('sp-words-' + id); if(!el) return;
+  const key = words.join(',');
+  if(el.dataset.k === key) return;
+  el.dataset.k = key; el.innerHTML = '';
+  words.forEach(w => { const d = document.createElement('div'); d.className = 'sp-word'; d.textContent = w; el.appendChild(d); });
+}
+function spBubble(g, s){
+  const b = s.bubble; if(!b) return;
+  const per = 8, txt = b.txt, lines = [];
+  for(let i = 0; i < txt.length; i += per) lines.push(txt.slice(i, i + per).split('').join(' '));
+  if(!lines.length) lines.push('');
+  const shown = Math.min(txt.length, Math.floor(b.t / .3) + 1);
+  g.font = 'bold 18px monospace'; g.textBaseline = 'middle'; g.textAlign = 'left';
+  const lw = Math.max(...lines.map(l => g.measureText(l).width)), bw = lw + 24, bh = lines.length * 24 + 14;
+  const sh = s.ship;
+  let bx = Math.max(6, Math.min(SP_W - bw - 6, sh.x - bw / 2)), by = sh.y - 30 - bh, below = false;
+  if(by < 6){ by = sh.y + 30; below = true; }
+  g.fillStyle = '#fff'; g.beginPath(); g.roundRect(bx, by, bw, bh, 10); g.fill();
+  const tx = Math.max(bx + 14, Math.min(bx + bw - 14, sh.x));
+  g.beginPath();
+  if(below){ g.moveTo(tx - 7, by + .5); g.lineTo(tx, by - 10); g.lineTo(tx + 7, by + .5); }
+  else { g.moveTo(tx - 7, by + bh - .5); g.lineTo(tx, by + bh + 10); g.lineTo(tx + 7, by + bh - .5); }
+  g.fill();
+  g.fillStyle = '#111';
+  let idx = 0;
+  lines.forEach((l, li) => {
+    const n = Math.min(l.split(' ').length, Math.max(0, shown - idx)); idx += per;
+    g.fillText(l.split(' ').slice(0, n).join(' '), bx + 12, by + 7 + li * 24 + 12);
+  });
+  g.textBaseline = 'alphabetic';
+}
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color){
-  return {t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null};
+  return {t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null};
 }
 function spEvent(){
   const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
   if(k === 0){
     let x, y, n = 0;
     do{ x = 30 + Math.random() * (SP_W - 60); y = 30 + Math.random() * (SP_H - 60); }while(Math.hypot(x - sh.x, y - sh.y) < 100 && ++n < 100);
-    s.statics.push({x, y, r:18, ch:0});
+    s.statics.push({x, y, r:18, ch:0, age:0});
   }else if(k === 1){
     const v = Math.random() < .5, base = v ? sh.x : sh.y;
     s.lasers.push({v, p: Math.max(20, Math.min(SP_W - 20, base + (Math.random() - .5) * 80)), t:0});
@@ -1076,7 +1174,7 @@ function spEvent(){
   }else{
     let x, y, n = 0;
     do{ x = 14 + Math.random() * (SP_W - 28); y = 14 + Math.random() * (SP_H - 28); }while(Math.hypot(x - sh.x, y - sh.y) < 250 && ++n < 200);
-    s.movers.push({x, y, vx:(Math.random() < .5 ? -1 : 1) * 60, vy:(Math.random() < .5 ? -1 : 1) * 45, r:14});
+    s.movers.push({x, y, vx:(Math.random() < .5 ? -1 : 1) * 60, vy:(Math.random() < .5 ? -1 : 1) * 45, r:14, age:0, bt:9, bax:'x'});
   }
 }
 function spStep(dt){
@@ -1086,8 +1184,9 @@ function spStep(dt){
     if(s.dying.t >= 1.5) sp = spFresh(sh.c);
     return;
   }
+  if(s.bubble){ s.bubble.t += dt; if(s.bubble.t > s.bubble.txt.length * .3 + 2.5) s.bubble = null; }
   sh.a += holdDir * SP_ROT * dt;
-  const r = sh.a * Math.PI / 180, mv = pfIn.r - pfIn.l;
+  const r = sh.a * Math.PI / 180, mv = pfIn.r - pfIn.l; sh.mv = mv;
   sh.x = spClamp(sh.x + Math.cos(r) * mv * SP_SPEED * dt);
   sh.y = spClamp(sh.y + Math.sin(r) * mv * SP_SPEED * dt);
   sh.cd -= dt;
@@ -1104,13 +1203,14 @@ function spStep(dt){
   s.statics = s.statics.filter(e => !e.dead);
   s.movers = s.movers.filter(e => !e.dead);
   for(const m of s.movers){
+    m.age += dt; m.bt += dt;
     m.x += m.vx * dt; m.y += m.vy * dt;
-    if(m.x < m.r){ m.x = m.r; m.vx = Math.abs(m.vx); } else if(m.x > SP_W - m.r){ m.x = SP_W - m.r; m.vx = -Math.abs(m.vx); }
-    if(m.y < m.r){ m.y = m.r; m.vy = Math.abs(m.vy); } else if(m.y > SP_H - m.r){ m.y = SP_H - m.r; m.vy = -Math.abs(m.vy); }
+    if(m.x < m.r){ m.x = m.r; m.vx = Math.abs(m.vx); m.bt = 0; m.bax = 'x'; } else if(m.x > SP_W - m.r){ m.x = SP_W - m.r; m.vx = -Math.abs(m.vx); m.bt = 0; m.bax = 'x'; }
+    if(m.y < m.r){ m.y = m.r; m.vy = Math.abs(m.vy); m.bt = 0; m.bax = 'y'; } else if(m.y > SP_H - m.r){ m.y = SP_H - m.r; m.vy = -Math.abs(m.vy); m.bt = 0; m.bax = 'y'; }
   }
   s.t += dt;
   if(s.t >= s.next){ s.next += 10; spEvent(); }
-  for(const e of s.statics) e.ch += dt;
+  for(const e of s.statics){ e.ch += dt; e.age += dt; }
   for(const l of s.lasers) l.t += dt;
   for(const f of s.flashes) f.t += dt;
   s.lasers = s.lasers.filter(l => l.t < 5.6);
@@ -1125,10 +1225,9 @@ function spStep(dt){
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
   g.globalAlpha = 1;
-  g.fillStyle = '#05060d'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#fff';
-  for(const [x, y, a] of SP_STARS){ g.globalAlpha = a; g.fillRect(x, y, 1.6, 1.6); }
-  g.globalAlpha = 1;
+  const T = performance.now() / 1000;
+  spBackground(g, T);
+  spShowWords(g.canvas.id.slice(-1), s.words || []);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
     const hw = SP_LW / 2, R = l.v ? [-hw, -H / 2, 2 * hw, H] : [-W / 2, -hw, W, 2 * hw];
@@ -1149,6 +1248,12 @@ function spDraw(g, s){
     g.globalAlpha = 1;
   });
   for(const e of s.statics) at(e.x, e.y, () => {
+    const sp0 = Math.min(1, e.age / .7);
+    if(sp0 < 1){
+      g.strokeStyle = '#b04dff'; g.lineWidth = 3; g.globalAlpha = 1 - sp0;
+      g.beginPath(); g.arc(0, 0, 14 + 60 * (1 - sp0), 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+      const z = Math.max(.01, spEase(sp0)); g.scale(z, z);
+    }
     const p = e.ch / 10, k = 1 + .15 * p * Math.abs(Math.sin(e.ch * 10));
     g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 3;
     g.beginPath(); g.arc(0, 0, 28, 0, Math.PI * 2); g.stroke();
@@ -1158,10 +1263,26 @@ function spDraw(g, s){
     g.fillStyle = C.red; g.beginPath(); g.arc(0, 0, 6, 0, Math.PI * 2); g.fill();
   });
   for(const m of s.movers) at(m.x, m.y, () => {
+    const p0 = Math.min(1, m.age / .6);
+    if(p0 < 1){
+      g.strokeStyle = C.orange; g.lineWidth = 3; g.globalAlpha = 1 - p0;
+      g.beginPath(); g.arc(0, 0, 12 + 46 * (1 - p0), 0, Math.PI * 2); g.stroke();
+      for(let i = 0; i < 8; i++){ const an = i * Math.PI / 4 + p0 * 3, d0 = 10 + 46 * (1 - p0); g.beginPath(); g.moveTo(Math.cos(an) * d0, Math.sin(an) * d0); g.lineTo(Math.cos(an) * (d0 + 8), Math.sin(an) * (d0 + 8)); g.stroke(); }
+      g.globalAlpha = 1;
+      const z = Math.max(.01, spEase(p0)); g.scale(z, z); g.rotate((1 - p0) * Math.PI * 2);
+    }
+    const w = Math.sin(m.age * 9) * .07, d = .25 * Math.max(0, 1 - m.bt / .25);
+    g.scale(1 + w + (m.bax === 'x' ? -d : d), 1 - w + (m.bax === 'x' ? d : -d));
+    g.shadowColor = C.orange; g.shadowBlur = 8 + 6 * Math.sin(m.age * 5);
     g.fillStyle = C.orange; g.strokeStyle = '#fff'; g.lineWidth = 2;
     g.beginPath(); g.arc(0, 0, m.r, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.shadowBlur = 0;
+    const sp1 = Math.hypot(m.vx, m.vy) || 1, ex = m.vx / sp1 * 2.2, ey = m.vy / sp1 * 2.2;
+    const bl = ((m.age + m.x * .01) % 3) < .12 ? .15 : 1;
+    g.fillStyle = '#fff';
+    g.beginPath(); g.ellipse(-5, -2, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(5, -2, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#000';
-    g.beginPath(); g.arc(-5, -2, 2.5, 0, Math.PI * 2); g.arc(5, -2, 2.5, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(-5 + ex, -2 + ey, 2, 2 * bl, 0, 0, Math.PI * 2); g.ellipse(5 + ex, -2 + ey, 2, 2 * bl, 0, 0, Math.PI * 2); g.fill();
   });
   g.fillStyle = '#fff';
   for(const b of s.bullets) at(b.x, b.y, () => { g.beginPath(); g.arc(0, 0, 3, 0, Math.PI * 2); g.fill(); });
@@ -1176,13 +1297,29 @@ function spDraw(g, s){
     g.fillRect(0, 0, W, H);
     g.globalAlpha = 1;
   }
-  const ship = (x, y, a, k) => {
+  const ship = (x, y, a, k, mv) => {
     g.save(); g.translate(x, y); g.rotate(a * Math.PI / 180); g.scale(k, k);
-    g.fillStyle = s.ship.c; g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round';
-    g.beginPath(); g.moveTo(0, -SP_R - 2); g.lineTo(SP_R * .8, SP_R); g.lineTo(0, SP_R * .5); g.lineTo(-SP_R * .8, SP_R); g.closePath();
-    g.fill(); g.stroke(); g.restore();
+    const c = s.ship.c, fl = (mv ? 11 : 4) + Math.sin(T * 50) * 2 + Math.sin(T * 31) * 1.5;
+    for(const sx of [-3, 3]){
+      const fg = g.createLinearGradient(0, 13, 0, 13 + fl); fg.addColorStop(0, '#fff'); fg.addColorStop(.35, '#ffb347'); fg.addColorStop(1, 'rgba(255,90,40,0)');
+      g.fillStyle = fg; g.beginPath(); g.moveTo(sx - 2, 13); g.lineTo(sx, 13 + fl); g.lineTo(sx + 2, 13); g.closePath(); g.fill();
+    }
+    g.lineJoin = 'round'; g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.4;
+    for(const m of [1, -1]){
+      g.beginPath(); g.moveTo(m * 4, -2); g.lineTo(m * 15, 11); g.lineTo(m * 15, 15); g.lineTo(m * 4, 11); g.closePath();
+      g.fillStyle = c; g.fill(); g.fillStyle = 'rgba(0,0,0,.28)'; g.fill(); g.stroke();
+      g.fillStyle = m > 0 ? '#3ddc97' : '#ff5c72'; g.beginPath(); g.arc(m * 15, 13, 1.4, 0, Math.PI * 2); g.fill();
+    }
+    g.beginPath(); g.moveTo(0, -17); g.bezierCurveTo(4, -11, 6, -3, 6, 6); g.lineTo(6, 11); g.lineTo(3, 13); g.lineTo(-3, 13); g.lineTo(-6, 11); g.lineTo(-6, 6); g.bezierCurveTo(-6, -3, -4, -11, 0, -17); g.closePath();
+    g.fillStyle = c; g.fill(); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(-6, 5, 12, 2);
+    g.fillStyle = '#2b2b3a'; g.fillRect(-4.5, 11, 3, 3); g.fillRect(1.5, 11, 3, 3);
+    const cg = g.createLinearGradient(0, -10, 0, 0); cg.addColorStop(0, '#d6f6ff'); cg.addColorStop(1, '#2a6fb0');
+    g.fillStyle = cg; g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = .8;
+    g.beginPath(); g.ellipse(0, -5, 2.8, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.restore();
   };
-  if(!dy) ship(s.ship.x, s.ship.y, s.ship.a, 1);
+  if(!dy) ship(s.ship.x, s.ship.y, s.ship.a, 1, s.ship.mv);
   else if(dy.t < .6){
     g.strokeStyle = s.ship.c; g.lineWidth = 3; g.globalAlpha = 1 - dy.t / .6;
     for(let i = 0; i < 12; i++){
@@ -1190,7 +1327,8 @@ function spDraw(g, s){
       g.beginPath(); g.moveTo(dy.x + Math.cos(an) * d * .6, dy.y + Math.sin(an) * d * .6); g.lineTo(dy.x + Math.cos(an) * d, dy.y + Math.sin(an) * d); g.stroke();
     }
     g.globalAlpha = 1;
-  }else if(dy.t >= .8) ship(W / 2, H / 2, 0, Math.min(1, (dy.t - .8) / .5));
+  }else if(dy.t >= .8) ship(W / 2, H / 2, 0, Math.min(1, (dy.t - .8) / .5), 0);
+  if(!dy) spBubble(g, s);
 }
 function spLoop(){
   const id = ++spLoopId; spActive = true; spLast = performance.now(); spAcc = 0;
@@ -1204,6 +1342,20 @@ function spLoop(){
   };
   requestAnimationFrame(f);
 }
+function spWord(p){
+  if(!sp || sp.dying) return;
+  sp.bubble = {txt: p.letters, t: 0};
+  if(p.ok && !sp.words.includes(p.word)){
+    sp.words.push(p.word);
+    if(sp.words.length >= 3 && !spWon){
+      spWon = true;
+      setTimeout(() => {
+        if(sp && sp.words.length >= 3){ spActive = false; spLoopId++; send('finalwin', {}); show('screen-win'); }
+        else spWon = false;
+      }, 2500);
+    }
+  }
+}
 function startSpace(){
   if(spStarted) return;
   spStarted = true; p1Stage = 7;
@@ -1214,7 +1366,20 @@ function startSpace(){
   $('space-section-1').classList.add('visible');
   setTimeout(() => { window.scrollTo({top:0, behavior:'smooth'}); spLoop(); }, 600);
 }
+function spSubmit(){
+  const letters = [];
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) if(!boardState[r][c]) letters.push(String.fromCharCode(65 + r * 5 + c));
+  const txt = letters.join(''), word = txt.toLowerCase();
+  const ok = word.length === 5 && SP_WORDS.has(word) && !(spView && spView.words.includes(word));
+  send('spword', {letters: txt, word, ok});
+  boardLocked = true;
+  document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add(ok ? 'right-fade' : 'wrong-fade'); });
+  setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+}
 function startSpaceView(){
+  spMode = true;
+  $('tetris-grid').classList.add('letters');
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) gridCellEls[r][c].textContent = String.fromCharCode(65 + r * 5 + c);
   spDraw($('space-cv-2').getContext('2d'), spFresh());
   $('space-section-2').classList.add('visible');
   setTimeout(() => window.scrollTo({top:0, behavior:'smooth'}), 600);
