@@ -330,6 +330,9 @@ function patternMatches(target){
 let peer = null, conn = null, myRole = null;
 let ready = {1:false, 2:false};
 let started = false;
+let restoring = false, milestones = [], lastPress = null;
+const MILESTONE = {win:1, skiptetris1:1, stage2:1, level3:1, level4:1, level5:1, level6:1, level7:1, finale:1};
+function noteMilestone(t){ if(!milestones.includes(t)) milestones.push(t); }
 let puzzle = null;
 let progress = [];
 
@@ -377,6 +380,8 @@ function wireConn(){
 let netPaused = false, pauseStart = 0, dcMode = null, lastRx = 0, hbTimer = null, outQ = [];
 const COALESCE = {space:1, input:1, board:1, rotate:1, rotglow:1, lightblock:1, finn:1};
 function send(type, payload){
+  if(restoring) return;
+  if(MILESTONE[type]) noteMilestone(type);
   if(netPaused){
     if(COALESCE[type]) outQ = outQ.filter(m => m.type !== type);
     outQ.push({type, payload});
@@ -388,6 +393,7 @@ function rx(m){
   lastRx = performance.now();
   if(m.type === 'ping') return;
   if(m.type === 'dc'){ if(!netPaused) enterPause('me'); return; }
+  if(MILESTONE[m.type]) noteMilestone(m.type);
   handleData(m);
 }
 function watchConn(c){
@@ -435,7 +441,9 @@ function listenRejoin(){
     const theirs = 3 - myRole;
     conn = c;
     if(!started) ready[theirs] = false;
-    c.send({type:'rejoinok', payload:{role:myRole}});
+    const sync = (started && m.payload && m.payload.inGame === false) ? buildSync() : null;
+    c.send({type:'rejoinok', payload:{role:myRole, started}});
+    if(sync){ c.send({type:'sync', payload:sync}); if(myRole === 2 && platMode) sendBoard(); }
     watchConn(c);
     resume();
   }));
@@ -460,7 +468,7 @@ function doRejoin(code, errEl){
       else if(m.type === 'rejoinok'){
         clearTimeout(to); done = true;
         conn = c;
-        const fresh = myRole === null; myRole = 3 - m.payload.role; if(fresh){ show('screen-ready'); $('ready-btn').disabled = false; }
+        const fresh = myRole === null; myRole = 3 - m.payload.role; if(fresh && !m.payload.started){ show('screen-ready'); $('ready-btn').disabled = false; }
         watchConn(c);
         resume();
       }
@@ -475,10 +483,43 @@ function resume(){
   if(!started && myRole && ready[myRole]) send('ready', {role:myRole});
   q.forEach(m => send(m.type, m.payload));
 }
+function buildSync(){
+  return {puzzle, log: milestones.slice(), elapsed: (netPaused ? pauseStart : performance.now()) - gameT0, press: lastPress, blocked: !!pieceOnLight};
+}
+// Fast-forward a freshly loaded page to the room's current progress (no countdown, no network sends)
+function applySync(p){
+  if(started || !p) return;
+  restoring = true;
+  try{
+    started = true; puzzle = p.puzzle;
+    startGame();
+    gameT0 = performance.now() - (p.elapsed || 0);
+    milestones = [];
+    (p.log || []).forEach(t => { noteMilestone(t); restoreStep(t); });
+    if(myRole === 2 && p.press){ if(mzLevel === 4) setBallColor(p.press); if(!pieceOnLight) lightUp(p.press); }
+    if(myRole === 1) setShelfBlocked(!!p.blocked);
+    lastPress = p.press || null;
+  } finally { restoring = false; }
+  if(myRole === 2 && platMode) sendBoard();
+}
+function restoreStep(t){
+  if(t === 'stage2'){ if(myRole === 2) advanceToColorStage(); else revealColorPattern(); }
+  else if(t === 'level6'){ if(myRole === 1) pfInstantLevel2(); }
+  else if(t === 'level7'){ if(myRole === 1) startSpace(); else startSpaceView(); }
+  else handleData({type:t, payload:{}});
+}
+function pfInstantLevel2(){
+  if(!pfStarted) startPlatformer();
+  if(pfLevel !== 1) return;
+  pfSetLevel(2); p1Stage = 6;
+  $('plat').style.height = (pfH * pfT + pfFloorH) + 'px';
+  pfBuildScene();
+}
 function handleData(msg){
-  if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
+  if(msg.type === 'sync'){ applySync(msg.payload); }
+  else if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
-  else if(msg.type === 'press'){ if(myRole === 2){ if(mzLevel === 4) setBallColor(msg.payload.color); if(!pieceOnLight) lightUp(msg.payload.color); } }
+  else if(msg.type === 'press'){ lastPress = msg.payload.color; if(myRole === 2){ if(mzLevel === 4) setBallColor(msg.payload.color); if(!pieceOnLight) lightUp(msg.payload.color); } }
   else if(msg.type === 'win'){ completePuzzle1(false); }
   else if(msg.type === 'stage2'){ revealColorPattern(); }
   else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board, msg.payload.stage, msg.payload.correct); }
@@ -575,7 +616,7 @@ function setShelfBlocked(v){
 }
 function pressButton(idx){
   if(shelfBlocked) return;
-  const color = puzzle.buttonMap[idx];
+  const color = puzzle.buttonMap[idx]; lastPress = color;
   if(spStarted && sp) sp.ship.c = color;
   send('press', {color});
   checkProgress(color);
@@ -1020,7 +1061,7 @@ function startLevel3(){
   $('puzzle3-section').classList.add('visible');
   setTimeout(() => {
     $('puzzle3-section').scrollIntoView({behavior:'smooth', block:'center'});
-    startMazeLoop();
+    if(!platMode) startMazeLoop();
   }, 700);
 }
 function startLevel4(){
