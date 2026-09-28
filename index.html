@@ -88,12 +88,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
 .maze{position:relative; width:264px; height:264px; background:var(--panel); flex:none;}
 .maze .wall{position:absolute; background:var(--sub); border-radius:1px;}
-.maze .exit-tile{position:absolute; width:44px; height:44px; background:rgba(61,220,151,.15); display:flex; align-items:center; justify-content:center;}
+.maze .exit-tile{position:absolute; width:44px; height:44px; display:flex; align-items:center; justify-content:center;}
 .maze .exit-tile i{width:28px; height:28px; border-radius:50%; background:#000; box-shadow:0 0 0 3px var(--accent2), 0 0 14px 2px rgba(61,220,151,.6);}
-.maze .ball{position:absolute; width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff,var(--accent) 70%); box-shadow:0 2px 4px rgba(0,0,0,.4);}
+.maze .ball{position:absolute; width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff,var(--ballc,#c9cad6) 70%); box-shadow:0 2px 4px rgba(0,0,0,.4);}
 #rotate-shelf{display:flex; gap:16px; justify-content:center; max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
 #rotate-shelf.visible{max-height:90px; opacity:1; margin-top:24px;}
 .rot-btn{width:56px; height:56px; border-radius:50%; border:3px solid var(--panel2); background:var(--panel2); color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center;}
+.maze .spike-tile{position:absolute; width:44px; height:44px; pointer-events:none; opacity:0; transition:opacity .6s ease;}
+.maze .spike-tile b{position:absolute; left:0; top:2px; width:44px; height:6px; clip-path:polygon(0 0,12.5% 100%,25% 0,37.5% 100%,50% 0,62.5% 100%,75% 0,87.5% 100%,100% 0);}
 .rot-btn{touch-action:none; user-select:none; -webkit-user-select:none;}
 .rot-btn:active{transform:scale(0.93);}
 </style>
@@ -269,14 +271,15 @@ function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); 
 function handleData(msg){
   if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
-  else if(msg.type === 'press'){ if(myRole === 2 && !pieceOnLight) lightUp(msg.payload.color); }
+  else if(msg.type === 'press'){ if(myRole === 2){ if(mzLevel === 4) setBallColor(msg.payload.color); else if(!pieceOnLight) lightUp(msg.payload.color); } }
   else if(msg.type === 'win'){ completePuzzle1(false); }
   else if(msg.type === 'stage2'){ revealColorPattern(); }
   else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board, msg.payload.stage); }
   else if(msg.type === 'lightblock'){ setShelfBlocked(msg.payload.blocked); }
   else if(msg.type === 'skiptetris1'){ if(myRole === 2){ advanceToColorStage(); send('stage2', {}); } }
-  else if(msg.type === 'rotate'){ if(myRole === 2 && mz) mz.dir = msg.payload.dir; }
+  else if(msg.type === 'rotate'){ if(myRole === 2){ mzDir = msg.payload.dir; if(mz && mzActive) mz.dir = mzDir; } }
   else if(msg.type === 'level3'){ if(myRole === 1) showRotateButtons(); else startLevel3(); }
+  else if(msg.type === 'level4'){ if(myRole === 1) showLevel4Controls(); else startLevel4(); }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
 }
 
@@ -361,11 +364,13 @@ function skipPuzzle1(){
   if(p1Stage === 0) completePuzzle1(true);
   else if(p1Stage === 1){ p1Stage = 2; send('skiptetris1', {}); }
   else if(p1Stage === 2){ send('level3', {}); showRotateButtons(); }
+  else if(p1Stage === 3){ send('level4', {}); showLevel4Controls(); }
 }
 let holdDir = 0;
 function rotHold(d){ holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; send('rotate', {dir: 0}); } }
-function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); $('skip-btn').style.display = 'none'; }
+function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); }
+function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); $('skip-btn').style.display = 'none'; }
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
   if(broadcast) send('win', {});
@@ -714,6 +719,29 @@ function drawMaze(){
   $('maze').style.transform = 'rotate(' + mz.a + 'deg)';
   ballEl.style.left = (mz.x - MR) + 'px'; ballEl.style.top = (mz.y - MR) + 'px';
 }
+let mzLevel = 3, mzDir = 0, mzLoopId = 0, spikeList = [], ballColor = null;
+// Spikes sit on a wall face of tile [row, col]; side = N/E/S/W. Ball must match the color to touch them.
+const SPIKES = [
+  [1,1,'S',C.green], [2,3,'S',C.red], [2,5,'E',C.yellow], [4,5,'S',C.blue], [4,3,'S',C.orange],
+  [4,2,'W',C.red], [3,1,'N',C.yellow], [3,0,'W',C.green], [5,0,'S',C.blue], [5,2,'N',C.red],
+  [5,3,'S',C.orange], [5,4,'N',C.green]
+];
+const SPIKE_H = 6;
+function spikeRect(r, c, side){
+  const x0 = c*MS, y0 = r*MS, x1 = x0 + MS, y1 = y0 + MS, h = MT/2;
+  return side === 'N' ? [x0, y0+h, x1, y0+h+SPIKE_H] : side === 'S' ? [x0, y1-h-SPIKE_H, x1, y1-h]
+       : side === 'W' ? [x0+h, y0, x0+h+SPIKE_H, y1] : [x1-h-SPIKE_H, y0, x1-h, y1];
+}
+function setBallColor(col){ ballColor = col; if(ballEl) ballEl.style.setProperty('--ballc', col); }
+function spikeHit(){
+  for(const sp of spikeList){
+    if(sp.color === ballColor) continue;
+    const [x0,y0,x1,y1] = sp.rect;
+    const cx = Math.max(x0, Math.min(mz.x, x1)), cy = Math.max(y0, Math.min(mz.y, y1));
+    if(Math.hypot(mz.x - cx, mz.y - cy) < MR + 1) return true;
+  }
+  return false;
+}
 function startLevel3(){
   if(mzStarted) return;
   mzStarted = true;
@@ -721,25 +749,69 @@ function startLevel3(){
   $('puzzle3-section').classList.add('visible');
   setTimeout(() => {
     $('puzzle3-section').scrollIntoView({behavior:'smooth', block:'center'});
-    mzActive = true; mzLast = performance.now(); mzAcc = 0; requestAnimationFrame(mazeLoop);
+    startMazeLoop();
   }, 700);
 }
-function mazeLoop(now){
-  if(!mzActive) return;
-  mzAcc = Math.min(mzAcc + (now - mzLast) / 1000, .1); mzLast = now;
-  while(mzAcc >= DT){
-    mazeStep(mz); mzAcc -= DT;
-    if(Math.abs(mz.x - mzExit.x) < MS/2 && Math.abs(mz.y - mzExit.y) < MS/2){ mazeWin(); return; }
-  }
-  drawMaze();
-  requestAnimationFrame(mazeLoop);
+function startLevel4(){
+  if(mzLevel === 4) return;
+  if(!mzStarted) startLevel3();
+  mzLevel = 4;
+  const m = $('maze'), rot = {N:0, E:90, S:180, W:270};
+  SPIKES.forEach(([r,c,side,col]) => {
+    spikeList.push({rect: spikeRect(r,c,side), color: col});
+    const t = document.createElement('div'); t.className = 'spike-tile';
+    t.style.cssText = `left:${c*MS}px;top:${r*MS}px;transform:rotate(${rot[side]}deg)`;
+    t.innerHTML = `<b style="background:${col}"></b>`;
+    m.insertBefore(t, ballEl);
+    setTimeout(() => t.style.opacity = 1, 30);
+  });
+  mazeReset();
+}
+function startMazeLoop(){
+  const id = ++mzLoopId;
+  mzActive = true; mzLast = performance.now(); mzAcc = 0; mz.dir = mzDir;
+  const f = now => {
+    if(!mzActive || id !== mzLoopId) return;
+    mzAcc = Math.min(mzAcc + (now - mzLast) / 1000, .1); mzLast = now;
+    while(mzAcc >= DT){
+      mazeStep(mz); mzAcc -= DT;
+      if(Math.abs(mz.x - mzExit.x) < MS/2 && Math.abs(mz.y - mzExit.y) < MS/2){ mazeWin(); return; }
+      if(mzLevel === 4 && spikeHit()){ mazeDie(); return; }
+    }
+    drawMaze();
+    requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+}
+// Animated return to the start: maze spins back to 0, ball pops out and reappears at the start
+function mazeReset(){
+  mzActive = false; mzLoopId++;
+  const m = $('maze');
+  m.style.transition = 'transform .8s ease'; m.style.transform = 'rotate(0deg)';
+  ballEl.style.transition = 'transform .25s ease, opacity .25s ease'; ballEl.style.opacity = '0';
+  setTimeout(() => {
+    mz = {x:MS/2, y:MS/2, vx:0, vy:0, a:0, dir:0};
+    ballEl.style.transition = 'none'; ballEl.style.transform = 'scale(0)'; drawMaze();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ballEl.style.transition = 'transform .3s ease, opacity .3s ease';
+      ballEl.style.opacity = '1'; ballEl.style.transform = 'scale(1)';
+    }));
+  }, 450);
+  setTimeout(() => { m.style.transition = ''; startMazeLoop(); }, 850);
+}
+function mazeDie(){
+  ballEl.style.transition = 'transform .25s ease'; ballEl.style.transform = 'scale(1.8)';
+  mazeReset();
 }
 function mazeWin(){
   mzActive = false;
   ballEl.style.transition = 'left .3s ease, top .3s ease, transform .5s ease';
   ballEl.style.left = (mzExit.x - MR) + 'px'; ballEl.style.top = (mzExit.y - MR) + 'px';
   ballEl.style.transform = 'scale(.1)';
-  setTimeout(() => { send('finalwin', {}); show('screen-win'); }, 800);
+  setTimeout(() => {
+    if(mzLevel === 3){ send('level4', {}); startLevel4(); }
+    else { send('finalwin', {}); show('screen-win'); }
+  }, 800);
 }
 
 let chargedPiece = null;
