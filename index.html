@@ -50,8 +50,6 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .hint{color:var(--sub); font-size:1rem;}
 .win{font-size:2rem; font-weight:800; color:var(--accent2);}
 .err{color:var(--danger); font-size:.9rem; margin-top:10px; min-height:1.2em;}
-#puzzle2-section{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
-#puzzle2-section.visible{max-height:700px; opacity:1; margin-top:24px;}
 .tetris-tray{display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-bottom:18px;}
 .tray-piece{position:relative; cursor:grab;}
 .tray-block{position:absolute; background:#fff; border-radius:2px;}
@@ -75,6 +73,19 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .reveal{display:grid; grid-template-rows:0fr; opacity:0; margin-top:0; transition:grid-template-rows .5s ease, opacity .5s ease, margin-top .5s ease;}
 .reveal.visible{grid-template-rows:1fr; opacity:1; margin-top:24px;}
 .reveal-inner{min-height:0; overflow:hidden;}
+.reveal.open > .reveal-inner{overflow:visible;}
+.pad{display:flex; gap:16px; justify-content:center;}
+.pad-btn{width:64px; height:64px;}
+.pad-btn.held{background:var(--accent); border-color:var(--accent); color:#fff;}
+.tetris-grid.removable .grid-cell.filled{cursor:pointer;}
+#plat{position:relative; margin:0 auto; background:#000; border-radius:8px; overflow:hidden; box-shadow:0 0 0 2px var(--panel2);}
+#plat > div, #plat-blocks > div{position:absolute;}
+#plat .pc{background:#1c1e29; border-radius:4px;}
+#plat .pb{box-shadow:inset 0 0 0 1px rgba(0,0,0,.3);}
+#plat .pledge{background:#fff;}
+#plat .pexit{display:flex; align-items:center; justify-content:center; color:#2fb86f; font-family:Georgia,'Times New Roman',serif; letter-spacing:.03em;}
+#plat .pplayer{left:0; top:0; background:#fff; border-radius:2px; will-change:transform;}
+#plat-blocks{position:absolute; left:0; top:0; width:100%; height:100%;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
@@ -82,8 +93,6 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .info-row .mini-grid{margin:0;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
-#puzzle3-section{max-height:0; opacity:0; overflow:hidden; margin-top:0; transition:max-height .6s ease, opacity .6s ease, margin-top .6s ease;}
-#puzzle3-section.visible{max-height:400px; opacity:1; margin-top:24px;}
 .maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
 .maze{position:relative; width:264px; height:264px; background:var(--panel); flex:none;}
 .maze .wall{position:absolute; background:var(--sub); border-radius:1px;}
@@ -145,6 +154,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
       <div class="mini-grid" id="submit-preview-1"></div>
     </div></div></div>
   </div></div>
+  <div id="platformer-section" class="reveal"><div class="reveal-inner"><div id="plat"></div></div></div>
   <button id="skip-btn" class="big-btn" onclick="skipPuzzle1()">Skip to next puzzle (test)</button>
 </div>
 
@@ -153,12 +163,20 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
     <div class="light" id="light"></div>
   </div>
   <div class="hint">From shortest to tallest</div>
-  <div id="puzzle2-section">
+  <div id="puzzle2-section" class="reveal"><div class="reveal-inner">
     <div class="tetris-tray" id="tetris-tray"></div>
     <div class="tetris-grid" id="tetris-grid"></div>
     <button class="big-btn" id="submit-btn" onclick="submitPattern()">Submit</button>
-  </div>
-  <div id="puzzle3-section"><div class="maze-stage"><div class="maze" id="maze"></div></div></div>
+  </div></div>
+  <div id="controls-section" class="reveal"><div class="reveal-inner">
+    <div class="pad">
+      <button class="rot-btn pad-btn" id="pbtn-l" onpointerdown="btnHold('l')" onpointerup="btnRelease('l')" onpointerleave="btnRelease('l')" onpointercancel="btnRelease('l')" oncontextmenu="return false" aria-label="Left"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="rot-btn pad-btn" id="pbtn-u" onpointerdown="btnHold('u')" onpointerup="btnRelease('u')" onpointerleave="btnRelease('u')" onpointercancel="btnRelease('u')" oncontextmenu="return false" aria-label="Jump"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15l7-7 7 7"/></svg></button>
+      <button class="rot-btn pad-btn" id="pbtn-r" onpointerdown="btnHold('r')" onpointerup="btnRelease('r')" onpointerleave="btnRelease('r')" onpointercancel="btnRelease('r')" oncontextmenu="return false" aria-label="Right"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="hint" style="margin-top:12px; font-size:.85rem;">Arrow keys / WASD also work · click a placed piece to remove it</div>
+  </div></div>
+  <div id="puzzle3-section" class="reveal"><div class="reveal-inner"><div class="maze-stage"><div class="maze" id="maze"></div></div></div></div>
 </div>
 
 <div id="screen-win" class="screen">
@@ -269,7 +287,7 @@ function send(type, payload){ if(conn && conn.open) conn.send({type, payload}); 
 function handleData(msg){
   if(msg.type === 'ready'){ ready[msg.payload.role] = true; updateWaiting(); tryStart(); }
   else if(msg.type === 'start'){ puzzle = msg.payload.puzzle; if(!started){ started = true; runCountdown(); } }
-  else if(msg.type === 'press'){ if(myRole === 2){ if(mzLevel === 4) setBallColor(msg.payload.color); else if(!pieceOnLight) lightUp(msg.payload.color); } }
+  else if(msg.type === 'press'){ if(myRole === 2){ if(mzLevel === 4) setBallColor(msg.payload.color); if(!pieceOnLight) lightUp(msg.payload.color); } }
   else if(msg.type === 'win'){ completePuzzle1(false); }
   else if(msg.type === 'stage2'){ revealColorPattern(); }
   else if(msg.type === 'submitted'){ renderSubmission(msg.payload.board, msg.payload.stage); }
@@ -278,6 +296,9 @@ function handleData(msg){
   else if(msg.type === 'rotate'){ if(myRole === 2){ mzDir = msg.payload.dir; if(mz && mzActive) mz.dir = mzDir; } }
   else if(msg.type === 'level3'){ if(myRole === 1) showRotateButtons(); else startLevel3(); }
   else if(msg.type === 'level4'){ if(myRole === 1) showLevel4Controls(); else startLevel4(); }
+  else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
+  else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
+  else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
 }
 
@@ -363,12 +384,13 @@ function skipPuzzle1(){
   else if(p1Stage === 1){ p1Stage = 2; send('skiptetris1', {}); }
   else if(p1Stage === 2){ send('level3', {}); showRotateButtons(); }
   else if(p1Stage === 3){ send('level4', {}); showLevel4Controls(); }
+  else if(p1Stage === 4){ send('level5', {}); startPlatformer(); }
 }
 let holdDir = 0;
 function rotHold(d){ holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; send('rotate', {dir: 0}); } }
 function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); }
-function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); $('skip-btn').style.display = 'none'; }
+function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); }
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
   if(broadcast) send('win', {});
@@ -434,12 +456,14 @@ let boardState = [];
 let gridCellEls = [];
 let dragState = null;
 let previewCells = [];
+let pieceIdGrid = [], pieceCounter = 0, platMode = false;
 
 function gridPixelSize(size){ return size * CELL + (size - 1) * 2 + 8; }
 
 function buildGrid(size){
   gridSize = size;
   boardState = Array.from({length:size}, () => Array(size).fill(null));
+  pieceIdGrid = Array.from({length:size}, () => Array(size).fill(0));
   gridCellEls = [];
   const grid = $('tetris-grid');
   grid.innerHTML = '';
@@ -452,6 +476,7 @@ function buildGrid(size){
     for(let c = 0; c < size; c++){
       const cell = document.createElement('div');
       cell.className = 'grid-cell';
+      cell.addEventListener('click', () => removePieceAt(r, c));
       grid.appendChild(cell);
       rowArr.push(cell);
     }
@@ -624,16 +649,29 @@ function tryPlace(x, y, offsets, color){
   if(!cells) return false;
   const valid = cells.every(([r,c]) => r >= 0 && r < gridSize && c >= 0 && c < gridSize && !boardState[r][c]);
   if(!valid) return false;
-  cells.forEach(([r,c]) => { boardState[r][c] = color; gridCellEls[r][c].style.background = color; gridCellEls[r][c].classList.add('filled'); });
+  const id = ++pieceCounter;
+  cells.forEach(([r,c]) => { boardState[r][c] = color; pieceIdGrid[r][c] = id; gridCellEls[r][c].style.background = color; gridCellEls[r][c].classList.add('filled'); });
+  sendBoard();
   return true;
 }
 
 function resetBoard(){
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
-    boardState[r][c] = null;
+    boardState[r][c] = null; pieceIdGrid[r][c] = 0;
     gridCellEls[r][c].style.background = '';
     gridCellEls[r][c].classList.remove('filled','wrong-fade');
   }
+  sendBoard();
+}
+function sendBoard(){ if(platMode) send('board', {board: boardState.map(r => r.slice())}); }
+function removePieceAt(r, c){
+  if(!platMode || boardLocked || dragState) return;
+  const id = pieceIdGrid[r][c]; if(!id) return;
+  for(let rr = 0; rr < gridSize; rr++) for(let cc = 0; cc < gridSize; cc++) if(pieceIdGrid[rr][cc] === id){
+    pieceIdGrid[rr][cc] = 0; boardState[rr][cc] = null;
+    gridCellEls[rr][cc].style.background = ''; gridCellEls[rr][cc].classList.remove('filled');
+  }
+  sendBoard();
 }
 function shakeGrid(){
   const grid = $('tetris-grid');
@@ -647,7 +685,7 @@ function advanceToColorStage(){
   $('light').classList.add('needs-color');
 }
 function submitPattern(){
-  if(boardLocked) return;
+  if(boardLocked || platMode) return;
   const stage = stageIndex;
   send('submitted', {board: boardState.map(r => r.slice()), stage});
   boardLocked = true;
@@ -809,9 +847,130 @@ function mazeWin(){
   ballEl.style.transform = 'scale(.1)';
   setTimeout(() => {
     if(mzLevel === 3){ send('level4', {}); startLevel4(); }
-    else { send('finalwin', {}); show('screen-win'); }
+    else { send('level5', {}); startLevel5(); }
   }, 800);
 }
+
+// --- Level 5: platformer (simulated on Player 1's screen, driven by Player 2's controls) ---
+// Arena is 10x10 tiles, floor at the bottom. Tetris grid = right 5x5 block (cols 5-9, rows 5-9); fixed ledge = cols 0-4, row 4.
+const PF_N = 10, PF_S = 0.8, PF_G = 30, PF_SPEED = 4, PF_DT = 1/120, PF_EPS = 1e-6;
+const PF_JUMP = Math.sqrt(2 * PF_G * 1.2) + PF_G * PF_DT / 2; // 1.2 tiles high
+const PF_LEDGE = [0,4,5,5], PF_EXIT = [1,3,3,4];
+let pf = null, pfIn = {l:0,r:0,u:0}, pfBoard = null, pfSolid = [PF_LEDGE];
+let pfStarted = false, pfActive = false, pfT = 50, pfEl = null, pfLoopId = 0, pfLast = 0, pfAcc = 0;
+function pfOverlaps(x, y, r){ return x < r[2]-PF_EPS && x+PF_S > r[0]+PF_EPS && y < r[3]-PF_EPS && y+PF_S > r[1]+PF_EPS; }
+function pfMk(cls, x, y, w, h, parent){
+  const d = document.createElement('div'); d.className = cls;
+  d.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+  (parent || $('plat')).appendChild(d); return d;
+}
+function pfComputeSolid(){
+  pfSolid = [PF_LEDGE];
+  (pfBoard || []).forEach((row, r) => row.forEach((v, c) => { if(v) pfSolid.push([5+c, 5+r, 6+c, 6+r]); }));
+}
+function pfDrawBlocks(){
+  const bl = $('plat-blocks'); if(!bl) return;
+  bl.innerHTML = '';
+  (pfBoard || []).forEach((row, r) => row.forEach((v, c) => {
+    if(v) pfMk('pb', (5+c)*pfT, (5+r)*pfT, pfT, pfT, bl).style.background = v;
+  }));
+}
+function pfSetBoard(board){
+  pfBoard = board; pfComputeSolid();
+  if(!pf) return;
+  pfDrawBlocks();
+  let g = 0; while(g++ < 400 && pfSolid.some(r => pfOverlaps(pf.x, pf.y, r))) pf.y -= 0.05; // lift player out of a newly placed block
+}
+function buildPlatformer(){
+  pfT = Math.max(24, Math.floor(Math.min(520, $('screen-game1').clientWidth) / PF_N));
+  const T = pfT, el = $('plat'); el.innerHTML = '';
+  el.style.width = el.style.height = (PF_N * T) + 'px';
+  for(let r = 0; r < 5; r++) for(let c = 0; c < 5; c++) pfMk('pc', (5+c)*T+2, (5+r)*T+2, T-4, T-4);
+  const bl = document.createElement('div'); bl.id = 'plat-blocks'; el.appendChild(bl);
+  pfMk('pledge', PF_LEDGE[0]*T, PF_LEDGE[1]*T, (PF_LEDGE[2]-PF_LEDGE[0])*T, (PF_LEDGE[3]-PF_LEDGE[1])*T);
+  const ex = pfMk('pexit', PF_EXIT[0]*T, PF_EXIT[1]*T, (PF_EXIT[2]-PF_EXIT[0])*T, (PF_EXIT[3]-PF_EXIT[1])*T);
+  ex.style.fontSize = (T * 0.6) + 'px'; ex.textContent = 'EXIT';
+  pfEl = pfMk('pplayer', 0, 0, PF_S*T, PF_S*T);
+  pfEl.innerHTML = '<svg viewBox="0 0 24 24" width="100%" height="100%"><circle cx="8.5" cy="9" r="1.9" fill="#000"/><circle cx="15.5" cy="9" r="1.9" fill="#000"/><path d="M6.5 14.5Q12 20.5 17.5 14.5" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  pf = {x:2.1, y:PF_N - PF_S, vx:0, vy:0, grounded:true};
+  pfComputeSolid(); pfDrawBlocks(); pfDraw();
+}
+function pfDraw(){ pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`; }
+function pfStep(){
+  const s = pf;
+  s.vx = (pfIn.r - pfIn.l) * PF_SPEED;
+  if(pfIn.u && s.grounded) s.vy = -PF_JUMP;
+  s.vy = Math.min(s.vy + PF_G * PF_DT, 25);
+  s.x = Math.max(0, Math.min(PF_N - PF_S, s.x + s.vx * PF_DT));
+  for(const r of pfSolid) if(pfOverlaps(s.x, s.y, r)){
+    if(s.vx > 0) s.x = r[0] - PF_S; else if(s.vx < 0) s.x = r[2];
+  }
+  s.y += s.vy * PF_DT; s.grounded = false;
+  if(s.y < 0){ s.y = 0; if(s.vy < 0) s.vy = 0; }
+  for(const r of pfSolid) if(pfOverlaps(s.x, s.y, r)){
+    if(s.vy > 0){ s.y = r[1] - PF_S; s.grounded = true; } else if(s.vy < 0){ s.y = r[3]; }
+    s.vy = 0;
+  }
+  if(s.y >= PF_N - PF_S){ s.y = PF_N - PF_S; s.vy = 0; s.grounded = true; }
+}
+function pfLoop(){
+  const id = ++pfLoopId; pfActive = true; pfLast = performance.now(); pfAcc = 0;
+  const f = now => {
+    if(!pfActive || id !== pfLoopId) return;
+    pfAcc = Math.min(pfAcc + (now - pfLast) / 1000, .1); pfLast = now;
+    while(pfAcc >= PF_DT){
+      pfStep(); pfAcc -= PF_DT;
+      if(pfOverlaps(pf.x, pf.y, PF_EXIT)){ pfWin(); return; }
+    }
+    pfDraw();
+    requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+}
+function pfWin(){
+  pfActive = false; pfDraw();
+  send('finalwin', {});
+  setTimeout(() => show('screen-win'), 400);
+}
+function startPlatformer(){
+  if(pfStarted) return;
+  pfStarted = true; p1Stage = 5;
+  $('skip-btn').style.display = 'none';
+  buildPlatformer();
+  $('platformer-section').classList.add('visible');
+  setTimeout(() => {
+    $('platformer-section').scrollIntoView({behavior:'smooth', block:'center'});
+    pfLoop();
+  }, 600);
+}
+// Player 2 side: controls + live sync of the tetris grid
+function startLevel5(){
+  if(platMode) return;
+  platMode = true;
+  mzActive = false; mzLoopId++; // freeze the maze
+  resetBoard();                 // fresh grid to build the path on (also syncs to Player 1)
+  $('submit-btn').disabled = true;
+  $('tetris-grid').classList.add('removable');
+  $('controls-section').classList.add('visible');
+  setTimeout(() => $('controls-section').scrollIntoView({behavior:'smooth', block:'center'}), 600);
+}
+const inKb = {l:0,r:0,u:0}, inBt = {l:0,r:0,u:0};
+let inSent = {l:0,r:0,u:0};
+function syncInput(){
+  const e = {};
+  for(const k of ['l','r','u']){ e[k] = (inKb[k] || inBt[k]) ? 1 : 0; $('pbtn-' + k).classList.toggle('held', !!e[k]); }
+  if(e.l !== inSent.l || e.r !== inSent.r || e.u !== inSent.u){ inSent = e; send('input', e); }
+}
+function btnHold(k){ inBt[k] = 1; syncInput(); }
+function btnRelease(k){ if(inBt[k]){ inBt[k] = 0; syncInput(); } }
+const KEYS = {ArrowLeft:'l', KeyA:'l', ArrowRight:'r', KeyD:'r', ArrowUp:'u', KeyW:'u'};
+document.addEventListener('keydown', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 1; syncInput(); });
+document.addEventListener('keyup', e => { const k = KEYS[e.code]; if(!k || !platMode || myRole !== 2) return; e.preventDefault(); inKb[k] = 0; syncInput(); });
+window.addEventListener('blur', () => { if(!platMode) return; for(const k of ['l','r','u']){ inKb[k] = 0; inBt[k] = 0; } syncInput(); });
+// once a reveal finishes, let its content overflow (so glows/shadows aren't clipped)
+document.addEventListener('transitionend', e => {
+  if(e.propertyName === 'grid-template-rows' && e.target.classList && e.target.classList.contains('reveal') && e.target.classList.contains('visible')) e.target.classList.add('open');
+});
 
 let chargedPiece = null;
 buildGrid(5);
