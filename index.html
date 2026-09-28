@@ -1231,11 +1231,17 @@ function spBubble(g, s){
   });
   g.textBaseline = 'alphabetic';
 }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 200, max: 200, age: 0, flash: 0, dead: -1}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 200, max: 200, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null}; }
 function spPudStep(p, dt){
   if(!p) return;
+  if(p.flee){ p.flee.t += dt; p.x += p.flee.vx * dt; p.y += p.flee.vy * dt; p.flee.vx *= 1.05; p.flee.vy *= 1.05; return; }
   p.age += dt; if(p.flash > 0) p.flash -= dt;
-  if(p.dead >= 0) p.dead += dt; else p.y = -60 + (p.ty + 60) * spEase(Math.min(1, p.age / 2.8));
+  if(p.dead >= 0){ p.dead += dt; return; }
+  if(p.age < 2.8){ p.y = -60 + (p.ty + 60) * spEase(Math.min(1, p.age / 2.8)); return; }
+  const frac = 1 - p.hp / p.max, cx = SP_W / 2, cy = SP_H / 2, rad = 175;
+  p.ang += (0.35 + frac * 1.15) * dt;
+  p.x = cx + Math.cos(p.ang) * rad;
+  p.y = cy + Math.sin(p.ang) * rad;
 }
 function spPudDraw(g, p, ship, T){
   if(p.dead > 1) return;
@@ -1251,15 +1257,15 @@ function spPudDraw(g, p, ship, T){
   const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#f2a93a'); bg.addColorStop(.45, '#ffe6ab'); bg.addColorStop(1, '#e7962e');
   body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
   if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
-  g.beginPath(); g.moveTo(-30, -4); g.quadraticCurveTo(0, -16, 30, -4); g.lineTo(30, 0); g.quadraticCurveTo(26, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-24, 5, -28, -1); g.closePath();
-  const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#e2790f'); ig.addColorStop(1, '#a34c0a');
+  g.beginPath(); g.moveTo(-30, -4); g.quadraticCurveTo(0, -23, 30, -4); g.lineTo(30, 0); g.quadraticCurveTo(26, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-24, 5, -28, -1); g.closePath();
+  const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#eb7f10'); ig.addColorStop(1, '#b8560c');
   g.fillStyle = ig; g.fill();
   g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -8, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
   const bl = (T % 3.3) < .12 ? .15 : 1, ax = Math.atan2(ship.y - p.y, ship.x - p.x), ex = Math.cos(ax) * 2, ey = Math.sin(ax) * 2;
-  g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-16 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(16 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
-  if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-17.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(14.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-18 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(18 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
+  if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-19.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(16.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
   g.strokeStyle = '#000'; g.lineWidth = 1.6; g.lineCap = 'round'; g.lineJoin = 'round';
-  g.beginPath(); g.moveTo(-10, 19); g.quadraticCurveTo(-7, 22, -4, 19); g.quadraticCurveTo(-1, 16, 2, 19); g.quadraticCurveTo(5, 22, 8, 19); g.stroke();
+  g.beginPath(); g.moveTo(-7, 19); g.quadraticCurveTo(-4.5, 21.5, -2, 19); g.quadraticCurveTo(0, 17.5, 2, 19); g.quadraticCurveTo(4.5, 21.5, 7, 19); g.stroke();
   g.restore();
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
@@ -1334,7 +1340,7 @@ function spStep(dt){
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
   if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 112) cause = 'pudding';
-  if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0) s.pud.dead = 0; } send('spdeath', {}); }
+  if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0 && !s.pud.flee){ const fa = Math.atan2(s.pud.y - SP_H / 2, s.pud.x - SP_W / 2) || (Math.random() * Math.PI * 2); s.pud.flee = {t:0, vx: Math.cos(fa) * 240, vy: Math.sin(fa) * 240}; } } send('spdeath', {}); }
 }
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
@@ -1477,7 +1483,7 @@ function spBossStart(){
   spWon = true; p1Stage = 8;
   $('skip-btn').style.display = 'none';
   const old = sp.ship, n = spFresh(old.c, true);
-  Object.assign(n.ship, {x: old.x, y: old.y, a: old.a, cd: old.cd, mv: old.mv});
+  Object.assign(n.ship, {x: old.x, y: SP_H - 100, a: old.a, cd: old.cd, mv: old.mv});
   n.bossT = 0; n.pud = spPud(); sp = n;
 }
 function startSpace(){
