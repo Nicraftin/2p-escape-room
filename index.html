@@ -133,7 +133,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .rot-btn:active{transform:scale(0.93);}
 @keyframes rotGlow{ 0%,100%{box-shadow:0 0 0 3px rgba(61,220,151,.5), 0 0 10px 2px rgba(61,220,151,.35);} 50%{box-shadow:0 0 0 4px rgba(61,220,151,.95), 0 0 24px 8px rgba(61,220,151,.75);} }
 #rotate-shelf .rot-btn.glow{border-color:var(--accent2); animation:rotGlow 1.3s ease-in-out infinite;}
-.sp-finale{text-align:center; font-weight:900; font-size:1.7rem; letter-spacing:.3em; text-indent:.3em; color:#ff2d46; margin-bottom:6px; animation:finaleSoft 3.2s ease-in-out infinite;}
+.sp-finale{text-align:center; font-weight:900; font-size:1.7rem; letter-spacing:.3em; text-indent:.3em; color:#ff2d46; margin-bottom:6px;}
 @keyframes finaleSoft{ 0%,100%{text-shadow:0 0 4px rgba(255,45,70,.45), 0 0 10px rgba(255,45,70,.25); transform:scale(1);} 50%{text-shadow:0 0 7px rgba(255,45,70,.7), 0 0 16px rgba(255,45,70,.4); transform:scale(1.02);} }
 @keyframes finaleBoss{ 0%,100%{text-shadow:0 0 6px rgba(255,144,71,.6), 0 0 14px rgba(255,144,71,.4); transform:scale(1);} 50%{text-shadow:0 0 12px rgba(255,144,71,1), 0 0 30px rgba(255,144,71,.8), 0 0 46px rgba(255,144,71,.5); transform:scale(1.08);} }
 @keyframes finaleShake{ 0%,90%,100%{margin-left:0;} 92%{margin-left:-3px;} 94%{margin-left:3px;} 96%{margin-left:-2px;} 98%{margin-left:2px;} }
@@ -142,6 +142,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .sp-hp{display:none; width:100%; max-width:480px; height:12px; margin:0 auto 10px; border-radius:7px; background:rgba(0,0,0,.4); box-shadow:0 0 0 2px var(--panel2); overflow:hidden;}
 .sp-hp.on{display:block; animation:spMsgIn .6s ease-out both;}
 .sp-hp i{display:block; height:100%; width:100%; border-radius:7px; background:linear-gradient(90deg,#c9691f,#ffb347); transition:width .12s linear;}
+.sp-hp.filling i{transition:width 1s ease;}
 .sp-msg{display:none; text-align:center; font-weight:800; font-size:1.15rem; line-height:1.4; color:#FF9047; margin-top:12px; min-height:2.8em;}
 .sp-msg.on{display:block;}
 .sp-msg.swap{animation:spMsgIn .4s ease-out both;}
@@ -356,6 +357,7 @@ function handleData(msg){
   else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
   else if(msg.type === 'space'){ if(myRole === 2){ spView = msg.payload; spDraw($('space-cv-2').getContext('2d'), msg.payload); } }
   else if(msg.type === 'spword'){ if(myRole === 1) spWord(msg.payload); }
+  else if(msg.type === 'spdeath'){ if(myRole === 2) spClearBoard(); }
   else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
@@ -1198,7 +1200,7 @@ function spTitle(id, s){
   hp.classList.toggle('on', b); msg.classList.toggle('on', b);
   if(!b) return;
   const p = s.pud, w = p ? Math.max(0, p.hp / p.max * 100) : 100;
-  if(hp._w !== w){ hp._w = w; hp.firstChild.style.width = w + '%'; }
+  if(hp._w !== w){ hp.classList.toggle('filling', w > (hp._w || 0)); hp._w = w; hp.firstChild.style.width = w + '%'; }
   const d = s.deaths || 0, m = SP_MSG[d];
   const t = m === undefined ? d + ' deaths' : (typeof m === 'function' ? m() : m);
   if(msg.textContent !== t) msg.textContent = t;
@@ -1229,7 +1231,7 @@ function spBubble(g, s){
   });
   g.textBaseline = 'alphabetic';
 }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 100, max: 100, age: 0, flash: 0, dead: -1}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 105, hp: 200, max: 200, age: 0, flash: 0, dead: -1}; }
 function spPudStep(p, dt){
   if(!p) return;
   p.age += dt; if(p.flash > 0) p.flash -= dt;
@@ -1238,7 +1240,7 @@ function spPudStep(p, dt){
 function spPudDraw(g, p, ship, T){
   if(p.dead > 1) return;
   const dd = p.dead >= 0, k = dd ? Math.min(1, p.dead) : 0;
-  g.save(); g.translate(p.x, p.y + Math.sin(T * 1.7) * 3);
+  g.save(); g.translate(p.x, p.y + Math.sin(T * 1.7) * 3); g.scale(3, 3);
   if(dd){
     g.strokeStyle = '#e08a2b'; g.lineWidth = 3; g.globalAlpha = 1 - k;
     for(let i = 0; i < 12; i++){ const an = i * Math.PI / 6, d = k * 90; g.beginPath(); g.moveTo(Math.cos(an) * d * .6, Math.sin(an) * d * .6); g.lineTo(Math.cos(an) * d, Math.sin(an) * d); g.stroke(); }
@@ -1246,16 +1248,18 @@ function spPudDraw(g, p, ship, T){
   }
   const w = Math.sin(T * 2.6) * .04; g.scale(1 + w, 1 - w); g.rotate(Math.sin(T * 1.3) * .03);
   const body = () => { g.beginPath(); g.moveTo(-36, 22); g.lineTo(-30, -12); g.quadraticCurveTo(0, -24, 30, -12); g.lineTo(36, 22); g.quadraticCurveTo(0, 32, -36, 22); g.closePath(); };
-  g.fillStyle = '#eef0f6'; g.beginPath(); g.ellipse(0, 26, 48, 9, 0, 0, Math.PI * 2); g.fill();
-  const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#e3ad45'); bg.addColorStop(.45, '#fbe3a0'); bg.addColorStop(1, '#dea23c');
+  const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#f2a93a'); bg.addColorStop(.45, '#ffe6ab'); bg.addColorStop(1, '#e7962e');
   body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
   if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
   g.beginPath(); g.moveTo(-30, -12); g.quadraticCurveTo(0, -24, 30, -12); g.lineTo(30, -6); g.quadraticCurveTo(26, 4, 22, -6); g.lineTo(14, -8); g.quadraticCurveTo(10, 12, 6, -8); g.lineTo(-4, -9); g.quadraticCurveTo(-8, 0, -12, -9); g.lineTo(-20, -9); g.quadraticCurveTo(-24, 10, -28, -8); g.closePath();
-  g.fillStyle = '#a5541a'; g.fill();
+  const ig = g.createRadialGradient(0, -12, 4, 0, -12, 40); ig.addColorStop(0, '#6e2c10'); ig.addColorStop(1, '#3c1406');
+  g.fillStyle = ig; g.fill();
   g.fillStyle = 'rgba(255,214,140,.45)'; g.beginPath(); g.ellipse(-8, -16, 10, 2.5, -.2, 0, Math.PI * 2); g.fill();
   const bl = (T % 3.3) < .12 ? .15 : 1, ax = Math.atan2(ship.y - p.y, ship.x - p.x), ex = Math.cos(ax) * 2, ey = Math.sin(ax) * 2;
-  g.fillStyle = '#fff'; g.beginPath(); g.ellipse(-9, 12, 4.2, 4.2 * bl, 0, 0, Math.PI * 2); g.ellipse(9, 12, 4.2, 4.2 * bl, 0, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#000'; g.beginPath(); g.ellipse(-9 + ex, 12 + ey, 2.2, 2.2 * bl, 0, 0, Math.PI * 2); g.ellipse(9 + ex, 12 + ey, 2.2, 2.2 * bl, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#1a1006'; g.beginPath(); g.ellipse(-9 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.ellipse(9 + ex, 12 + ey, 3.6, 3.6 * bl, 0, 0, Math.PI * 2); g.fill();
+  if(bl > .5){ g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(-10.4 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.ellipse(7.6 + ex, 10.6 + ey, 1.1, 1.1, 0, 0, Math.PI * 2); g.fill(); }
+  g.strokeStyle = '#7a3c15'; g.lineWidth = 1.6; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(-11, 20); g.quadraticCurveTo(-6, 24, -1, 20); g.quadraticCurveTo(4, 16, 9, 20); g.stroke();
   g.restore();
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
@@ -1284,7 +1288,7 @@ function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
     s.dying.t += dt; spPudStep(s.pud, dt);
-    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; n.pud = s.pud; if(s.boss) n.bossT = 99; sp = n; }
+    if(s.dying.t >= 1.5){ const n = spFresh(sh.c, s.boss); n.deaths = s.deaths; if(s.boss){ n.pud = spPud(); n.bossT = 99; } sp = n; }
     return;
   }
   if(s.bubble){
@@ -1304,7 +1308,7 @@ function spStep(dt){
     b.x += b.vx * dt; b.y += b.vy * dt;
     for(const e of s.statics) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
     for(const e of s.movers) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
-    const P = s.pud; if(P && P.dead < 0 && !b.hit && Math.hypot(b.x - P.x, b.y - P.y) < 37){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
+    const P = s.pud; if(P && P.dead < 0 && !b.hit && Math.hypot(b.x - P.x, b.y - P.y) < 111){ b.hit = true; P.hp--; P.flash = .12; if(P.hp <= 0){ P.hp = 0; P.dead = 0; } }
   }
   s.bullets = s.bullets.filter(b => !b.hit && b.x > -10 && b.x < SP_W + 10 && b.y > -10 && b.y < SP_H + 10);
   s.statics = s.statics.filter(e => !e.dead);
@@ -1325,11 +1329,12 @@ function spStep(dt){
   s.flashes = s.flashes.filter(f => f.t < 3);
   let cause = null, src = null;
   for(const e of s.statics) if(e.ch >= 10){ cause = 'static'; src = [e.x, e.y]; }
+  for(const e of s.statics) if(Math.hypot(sh.x - e.x, sh.y - e.y) < e.r + 9) cause = 'static';
   for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
   for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
   for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
-  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 43) cause = 'pudding';
-  if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss) s.deaths++; }
+  if(s.pud && s.pud.dead < 0 && Math.hypot(sh.x - s.pud.x, sh.y - s.pud.y) < 129) cause = 'pudding';
+  if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0) s.pud.dead = 0; } send('spdeath', {}); }
 }
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
@@ -1492,6 +1497,12 @@ function spSubmit(){
   send('spword', {letters: txt, word, ok});
   boardLocked = true;
   document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add(ok ? 'right-fade' : 'wrong-fade'); });
+  setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
+}
+function spClearBoard(){
+  if(boardLocked || !spMode) return;
+  boardLocked = true;
+  document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add('wrong-fade'); });
   setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
 }
 function startSpaceView(){
