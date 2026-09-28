@@ -90,8 +90,8 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #plat .pc{background:rgba(88,101,242,.07); box-shadow:inset 0 0 0 1px rgba(154,156,176,.18); border-radius:4px;}
 #plat .pb{border-radius:3px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.28), inset 0 3px 0 rgba(255,255,255,.28);}
 #plat .pledge{background-color:#24263b; box-shadow:inset -2px 0 0 rgba(255,255,255,.05);
-  background-image:linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(180deg, rgba(88,101,242,.22), rgba(0,0,0,.28));
-  background-size:var(--t) var(--t), var(--t) var(--t), 100% 100%;}
+  background-image:linear-gradient(180deg, #2b2f52, #1b1c2d);
+  background-size:100% 100%;}
 #plat .pledge::before{content:''; position:absolute; left:0; right:0; top:0; height:5px; background:linear-gradient(90deg,#5865f2,#8f99ff);}
 #plat .pfloor{background:#2c2f4f; background-image:none; box-shadow:none;}
 #plat .pfloor::before{display:none;}
@@ -116,6 +116,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .mini-cell.filled{background:#fff;}
 .info-row{display:flex; gap:20px; justify-content:center; align-items:flex-start;}
 .info-row .mini-grid{margin:0;}
+#game-timer{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:50; display:none; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1.2rem; font-weight:700; color:var(--text); background:rgba(0,0,0,.35); padding:4px 12px; border-radius:8px; pointer-events:none;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
 .maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
@@ -212,6 +213,8 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   </div></div>
   <div id="puzzle3-section" class="reveal"><div class="reveal-inner"><div class="maze-stage"><div class="maze" id="maze"></div></div></div></div>
 </div>
+
+<div id="game-timer">00:00.000</div>
 
 <div id="screen-win" class="screen">
   <div class="win">You win! 🎉</div>
@@ -371,7 +374,20 @@ function runCountdown(){
   }, 700);
 }
 
+let gameT0 = 0;
+function fmtTime(ms){
+  const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60, x = Math.floor(ms % 1000);
+  const p2 = n => String(n).padStart(2, '0');
+  return (h > 0 ? h + ':' : '') + p2(m) + ':' + p2(sec) + '.' + String(x).padStart(3, '0');
+}
+function startTimer(){
+  gameT0 = performance.now();
+  const el = $('game-timer'); el.style.display = 'block';
+  const tick = () => { el.textContent = fmtTime(performance.now() - gameT0); requestAnimationFrame(tick); };
+  tick();
+}
 function startGame(){
+  startTimer();
   if(myRole === 1){ renderPillars(); renderShelf(); show('screen-game1'); }
   else{ show('screen-game2'); }
 }
@@ -428,6 +444,7 @@ function skipPuzzle1(){
   else if(p1Stage === 4){ send('level5', {}); startPlatformer(); }
   else if(p1Stage === 5){ pfNextLevel(); }
   else if(p1Stage === 6){ send('level7', {}); startSpace(); }
+  else if(p1Stage === 7){ spBossStart(); }
 }
 let holdDir = 0;
 function rotHold(d){ holdDir = d; send('rotate', {dir: d}); }
@@ -1084,24 +1101,17 @@ const SP_BG = (() => {
     ({vy, vx, stars: Array.from({length: cnt}, () => ({x: R() * SP_W, y: R() * SP_H, sz: sz * (.6 + R() * .7), ph: R() * 6.28, sp: 1 + R() * 3, tint: tints[Math.floor(R() * 3)]}))}));
   return {neb, layers, R: {sx: R() * 480, sy: R() * 480}};
 })();
-function spBackground(g, T){
+function spBackground(g, T, boss){
   const W = SP_W, H = SP_H;
   g.fillStyle = '#04050c'; g.fillRect(0, 0, W, H);
   const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0a0620'); bg.addColorStop(1, '#03101f');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   const ox = (T * 3) % W, oy = (T * 6) % H;
-  g.globalAlpha = .55 + .15 * Math.sin(T * .4);
-  for(const dx of [-W, 0]) for(const dy of [-H, 0]) g.drawImage(SP_BG.neb, ox + dx, oy + dy);
-  g.globalAlpha = 1;
-  // planet drifting slowly
-  const px = ((380 - T * 3) % (W + 160) + W + 160) % (W + 160) - 80, py = 110 + Math.sin(T * .1) * 10, pr = 34;
-  g.save(); g.translate(px, py);
-  g.strokeStyle = 'rgba(200,170,255,.25)'; g.lineWidth = 5; g.beginPath(); g.ellipse(0, 0, pr * 1.7, pr * .4, -.4, Math.PI, Math.PI * 2); g.stroke();
-  const pg = g.createRadialGradient(-pr * .4, -pr * .4, pr * .1, 0, 0, pr);
-  pg.addColorStop(0, '#9a7cff'); pg.addColorStop(.6, '#4a3aa8'); pg.addColorStop(1, '#0d0a2a');
-  g.fillStyle = pg; g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fill();
-  g.beginPath(); g.ellipse(0, 0, pr * 1.7, pr * .4, -.4, 0, Math.PI); g.stroke();
-  g.restore();
+  if(boss){
+    g.globalAlpha = .55 + .15 * Math.sin(T * .4);
+    for(const dx of [-W, 0]) for(const dy of [-H, 0]) g.drawImage(SP_BG.neb, ox + dx, oy + dy);
+    g.globalAlpha = 1;
+  }
   // parallax stars
   for(const L of SP_BG.layers) for(const st of L.stars){
     const x = ((st.x + T * L.vx) % W + W) % W, y = ((st.y + T * L.vy) % H + H) % H;
@@ -1112,7 +1122,7 @@ function spBackground(g, T){
   }
   g.globalAlpha = 1;
   // shooting stars
-  for(let i = 0; i < 2; i++){
+  for(let i = 0; i < (boss ? 2 : 0); i++){
     const per = 6 + i * 3.7, u = T + i * 2.3, cyc = Math.floor(u / per), ph = (u % per) / per;
     if(ph < .1){
       const R = spRng(cyc * 31 + i * 7), x0 = R() * W, y0 = R() * H * .6, an = .5 + R() * .5, p = ph / .1, d = p * 160;
@@ -1156,8 +1166,8 @@ function spBubble(g, s){
   g.textBaseline = 'alphabetic';
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
-function spFresh(color){
-  return {t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null};
+function spFresh(color, boss){
+  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, words:[], bubble:null};
 }
 function spEvent(){
   const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
@@ -1181,10 +1191,13 @@ function spStep(dt){
   const s = sp, sh = s.ship;
   if(s.dying){
     s.dying.t += dt;
-    if(s.dying.t >= 1.5) sp = spFresh(sh.c);
+    if(s.dying.t >= 1.5) sp = spFresh(sh.c, s.boss);
     return;
   }
-  if(s.bubble){ s.bubble.t += dt; if(s.bubble.t > s.bubble.txt.length * .3 + 2.5) s.bubble = null; }
+  if(s.bubble){
+    s.bubble.t += dt;
+    if(s.bubble.word && s.bubble.t >= (s.bubble.txt.length - 1) * .3){ const w = s.bubble.word; s.bubble.word = null; spAddWord(w); }
+    if(s.bubble.t > s.bubble.txt.length * .3 + 2.5) s.bubble = null; }
   sh.a += holdDir * SP_ROT * dt;
   const r = sh.a * Math.PI / 180, mv = pfIn.r - pfIn.l; sh.mv = mv;
   sh.x = spClamp(sh.x + Math.cos(r) * mv * SP_SPEED * dt);
@@ -1226,7 +1239,7 @@ function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
   g.globalAlpha = 1;
   const T = performance.now() / 1000;
-  spBackground(g, T);
+  spBackground(g, T, s.boss);
   spShowWords(g.canvas.id.slice(-1), s.words || []);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
@@ -1343,24 +1356,28 @@ function spLoop(){
   requestAnimationFrame(f);
 }
 function spWord(p){
-  if(!sp || sp.dying) return;
-  sp.bubble = {txt: p.letters, t: 0};
-  if(p.ok && !sp.words.includes(p.word)){
-    sp.words.push(p.word);
-    if(sp.words.length >= 3 && !spWon){
-      spWon = true;
-      setTimeout(() => {
-        if(sp && sp.words.length >= 3){ spActive = false; spLoopId++; send('finalwin', {}); show('screen-win'); }
-        else spWon = false;
-      }, 2500);
-    }
+  if(!sp || sp.dying || sp.boss) return;
+  sp.bubble = {txt: p.letters, t: 0, word: (p.ok && !sp.words.includes(p.word)) ? p.word : null};
+}
+function spAddWord(w){
+  if(!sp || sp.boss || sp.words.includes(w)) return;
+  sp.words.push(w);
+  if(sp.words.length >= 3 && !spWon){
+    spWon = true;
+    setTimeout(() => { if(sp && !sp.boss) spBossStart(); }, 2500);
   }
+}
+// Bossfight level: same arena with the glow + shooting stars, random enemies keep spawning, no boss yet
+function spBossStart(){
+  if(!sp || sp.boss) return;
+  spWon = true; p1Stage = 8;
+  $('skip-btn').style.display = 'none';
+  sp = spFresh(sp.ship.c, true);
 }
 function startSpace(){
   if(spStarted) return;
   spStarted = true; p1Stage = 7;
   pfActive = false; pfLoopId++;
-  $('skip-btn').style.display = 'none';
   setShelfBlocked(false);
   sp = spFresh();
   $('space-section-1').classList.add('visible');
