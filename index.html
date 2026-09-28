@@ -132,6 +132,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .rot-btn:active{transform:scale(0.93);}
 @keyframes rotGlow{ 0%,100%{box-shadow:0 0 0 3px rgba(61,220,151,.5), 0 0 10px 2px rgba(61,220,151,.35);} 50%{box-shadow:0 0 0 4px rgba(61,220,151,.95), 0 0 24px 8px rgba(61,220,151,.75);} }
 #rotate-shelf .rot-btn.glow{border-color:var(--accent2); animation:rotGlow 1.3s ease-in-out infinite;}
+.space-cv{display:block; width:100%; max-width:480px; height:auto; aspect-ratio:1; margin:0 auto; border-radius:12px; box-shadow:0 0 0 2px var(--panel2), 0 10px 30px rgba(0,0,0,.35);}
 </style>
 </head>
 <body>
@@ -165,6 +166,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game1" class="screen">
+  <div id="space-section-1" class="reveal"><div class="reveal-inner"><canvas id="space-cv-1" class="space-cv" width="480" height="480"></canvas></div></div>
   <div class="deco" id="pillars"></div>
   <div class="shelf" id="shelf"></div>
   <div id="rotate-shelf" class="reveal"><div class="reveal-inner"><div>
@@ -186,6 +188,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 </div>
 
 <div id="screen-game2" class="screen">
+  <div id="space-section-2" class="reveal"><div class="reveal-inner"><canvas id="space-cv-2" class="space-cv" width="480" height="480"></canvas></div></div>
   <div class="light-row">
     <div class="light" id="light"></div>
   </div>
@@ -325,6 +328,8 @@ function handleData(msg){
   else if(msg.type === 'level4'){ if(myRole === 1) showLevel4Controls(); else startLevel4(); }
   else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
   else if(msg.type === 'level6'){ if(myRole === 2) startLevel6(); }
+  else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
+  else if(msg.type === 'space'){ if(myRole === 2) spDraw($('space-cv-2').getContext('2d'), msg.payload); }
   else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
@@ -383,12 +388,14 @@ function renderShelf(){
 }
 let shelfBlocked = false;
 function setShelfBlocked(v){
+  if(spStarted) v = false;
   shelfBlocked = v;
   document.querySelectorAll('.shelf-btn').forEach(b => b.disabled = v);
 }
 function pressButton(idx){
   if(shelfBlocked) return;
   const color = puzzle.buttonMap[idx];
+  if(spStarted && sp) sp.ship.c = color;
   send('press', {color});
   checkProgress(color);
 }
@@ -414,6 +421,7 @@ function skipPuzzle1(){
   else if(p1Stage === 3){ send('level4', {}); showLevel4Controls(); }
   else if(p1Stage === 4){ send('level5', {}); startPlatformer(); }
   else if(p1Stage === 5){ pfNextLevel(); }
+  else if(p1Stage === 6){ send('level7', {}); startSpace(); }
 }
 let holdDir = 0;
 function rotHold(d){ holdDir = d; send('rotate', {dir: d}); }
@@ -967,6 +975,7 @@ function pfNextLevel(){
   setTimeout(() => { el.style.height = ((pfH + 5) * pfT + pfFloorH) + 'px'; }, 550);
   setTimeout(() => {
     pfSetLevel(2); p1Stage = 6;
+    $('skip-btn').style.display = '';
     pfBuildScene();
     void inner.offsetWidth; inner.style.opacity = '1';
     $('platformer-section').scrollIntoView({behavior:'smooth', block:'center'});
@@ -1030,8 +1039,8 @@ function pfWin(){
   pfActive = false; pfDraw();
   pfEnterExit(() => {
     if(pfLevel === 1){ pfNextLevel(); return; }
-    send('finalwin', {});
-    show('screen-win');
+    send('level7', {});
+    startSpace();
   });
 }
 function startPlatformer(){
@@ -1043,6 +1052,172 @@ function startPlatformer(){
     $('platformer-section').scrollIntoView({behavior:'smooth', block:'center'});
     pfLoop();
   }, 600);
+}
+// --- Level 7: space minigame (simulated on Player 1's side, drawn on both screens; Player 2's input arrives through pfIn) ---
+const SP_W = 480, SP_H = 480, SP_R = 12, SP_SPEED = 200, SP_ROT = 90, SP_BSPEED = 460, SP_CD = .25, SP_DT = 1/120, SP_LW = 36;
+let sp = null, spStarted = false, spActive = false, spLoopId = 0, spLast = 0, spAcc = 0;
+const SP_STARS = Array.from({length: 70}, (_, i) => [(i * 7919) % SP_W, (i * 104729) % SP_H, .4 + (i % 3) * .3]);
+const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
+function spFresh(color){
+  return {t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null};
+}
+function spEvent(){
+  const s = sp, sh = s.ship, k = Math.floor(Math.random() * 4);
+  if(k === 0){
+    let x, y, n = 0;
+    do{ x = 30 + Math.random() * (SP_W - 60); y = 30 + Math.random() * (SP_H - 60); }while(Math.hypot(x - sh.x, y - sh.y) < 100 && ++n < 100);
+    s.statics.push({x, y, r:18, ch:0});
+  }else if(k === 1){
+    const v = Math.random() < .5, base = v ? sh.x : sh.y;
+    s.lasers.push({v, p: Math.max(20, Math.min(SP_W - 20, base + (Math.random() - .5) * 80)), t:0});
+  }else if(k === 2){
+    const cols = Object.values(C);
+    s.flashes.push({c: cols[Math.floor(Math.random() * cols.length)], t:0});
+  }else{
+    let x, y, n = 0;
+    do{ x = 14 + Math.random() * (SP_W - 28); y = 14 + Math.random() * (SP_H - 28); }while(Math.hypot(x - sh.x, y - sh.y) < 250 && ++n < 200);
+    s.movers.push({x, y, vx:(Math.random() < .5 ? -1 : 1) * 60, vy:(Math.random() < .5 ? -1 : 1) * 45, r:14});
+  }
+}
+function spStep(dt){
+  const s = sp, sh = s.ship;
+  if(s.dying){
+    s.dying.t += dt;
+    if(s.dying.t >= 1.5) sp = spFresh(sh.c);
+    return;
+  }
+  sh.a += holdDir * SP_ROT * dt;
+  const r = sh.a * Math.PI / 180, mv = pfIn.r - pfIn.l;
+  sh.x = spClamp(sh.x + Math.cos(r) * mv * SP_SPEED * dt);
+  sh.y = spClamp(sh.y + Math.sin(r) * mv * SP_SPEED * dt);
+  sh.cd -= dt;
+  if(pfIn.u && sh.cd <= 0){
+    sh.cd = SP_CD;
+    s.bullets.push({x: sh.x + Math.sin(r) * SP_R, y: sh.y - Math.cos(r) * SP_R, vx: Math.sin(r) * SP_BSPEED, vy: -Math.cos(r) * SP_BSPEED});
+  }
+  for(const b of s.bullets){
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    for(const e of s.statics) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
+    for(const e of s.movers) if(!e.dead && !b.hit && Math.hypot(b.x - e.x, b.y - e.y) < e.r + 3){ e.dead = true; b.hit = true; }
+  }
+  s.bullets = s.bullets.filter(b => !b.hit && b.x > -10 && b.x < SP_W + 10 && b.y > -10 && b.y < SP_H + 10);
+  s.statics = s.statics.filter(e => !e.dead);
+  s.movers = s.movers.filter(e => !e.dead);
+  for(const m of s.movers){
+    m.x += m.vx * dt; m.y += m.vy * dt;
+    if(m.x < m.r){ m.x = m.r; m.vx = Math.abs(m.vx); } else if(m.x > SP_W - m.r){ m.x = SP_W - m.r; m.vx = -Math.abs(m.vx); }
+    if(m.y < m.r){ m.y = m.r; m.vy = Math.abs(m.vy); } else if(m.y > SP_H - m.r){ m.y = SP_H - m.r; m.vy = -Math.abs(m.vy); }
+  }
+  s.t += dt;
+  if(s.t >= s.next){ s.next += 10; spEvent(); }
+  for(const e of s.statics) e.ch += dt;
+  for(const l of s.lasers) l.t += dt;
+  for(const f of s.flashes) f.t += dt;
+  s.lasers = s.lasers.filter(l => l.t < 5.6);
+  s.flashes = s.flashes.filter(f => f.t < 3);
+  let cause = null, src = null;
+  for(const e of s.statics) if(e.ch >= 10){ cause = 'static'; src = [e.x, e.y]; }
+  for(const l of s.lasers) if(l.t >= 5 && Math.abs((l.v ? sh.x : sh.y) - l.p) < SP_LW / 2 + 8) cause = 'laser';
+  for(const f of s.flashes) if(f.t >= 2 && sh.c !== f.c) cause = 'flash';
+  for(const m of s.movers) if(Math.hypot(sh.x - m.x, sh.y - m.y) < m.r + 9) cause = 'mover';
+  if(cause) s.dying = {t:0, x:sh.x, y:sh.y, beam: src};
+}
+function spDraw(g, s){
+  const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
+  g.globalAlpha = 1;
+  g.fillStyle = '#05060d'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#fff';
+  for(const [x, y, a] of SP_STARS){ g.globalAlpha = a; g.fillRect(x, y, 1.6, 1.6); }
+  g.globalAlpha = 1;
+  const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
+  for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
+    const hw = SP_LW / 2, R = l.v ? [-hw, -H / 2, 2 * hw, H] : [-W / 2, -hw, W, 2 * hw];
+    if(l.t < 5){
+      const p = l.t / 5;
+      g.fillStyle = C.red;
+      g.globalAlpha = .1; g.fillRect(...R);
+      g.globalAlpha = .3; if(l.v) g.fillRect(-hw * p, -H / 2, 2 * hw * p, H); else g.fillRect(-W / 2, -hw * p, W, 2 * hw * p);
+      g.globalAlpha = .4 + .4 * Math.sin(l.t * (6 + 14 * p));
+      if(l.v) g.fillRect(-1, -H / 2, 2, H); else g.fillRect(-W / 2, -1, W, 2);
+    }else{
+      g.globalAlpha = Math.min(1, (5.6 - l.t) / .2);
+      g.shadowColor = C.red; g.shadowBlur = 20;
+      g.fillStyle = C.red; g.fillRect(...R);
+      g.shadowBlur = 0; g.fillStyle = '#fff';
+      if(l.v) g.fillRect(-hw / 3, -H / 2, hw * 2 / 3, H); else g.fillRect(-W / 2, -hw / 3, W, hw * 2 / 3);
+    }
+    g.globalAlpha = 1;
+  });
+  for(const e of s.statics) at(e.x, e.y, () => {
+    const p = e.ch / 10, k = 1 + .15 * p * Math.abs(Math.sin(e.ch * 10));
+    g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(0, 0, 28, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = C.red; g.lineWidth = 4;
+    g.beginPath(); g.arc(0, 0, 28, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, p)); g.stroke();
+    g.fillStyle = '#b04dff'; g.beginPath(); g.arc(0, 0, e.r * k, 0, Math.PI * 2); g.fill();
+    g.fillStyle = C.red; g.beginPath(); g.arc(0, 0, 6, 0, Math.PI * 2); g.fill();
+  });
+  for(const m of s.movers) at(m.x, m.y, () => {
+    g.fillStyle = C.orange; g.strokeStyle = '#fff'; g.lineWidth = 2;
+    g.beginPath(); g.arc(0, 0, m.r, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#000';
+    g.beginPath(); g.arc(-5, -2, 2.5, 0, Math.PI * 2); g.arc(5, -2, 2.5, 0, Math.PI * 2); g.fill();
+  });
+  g.fillStyle = '#fff';
+  for(const b of s.bullets) at(b.x, b.y, () => { g.beginPath(); g.arc(0, 0, 3, 0, Math.PI * 2); g.fill(); });
+  if(dy && dy.beam && dy.t < .3){
+    g.strokeStyle = C.red; g.lineWidth = 6; g.globalAlpha = 1 - dy.t / .3;
+    g.beginPath(); g.moveTo(dy.beam[0], dy.beam[1]); g.lineTo(dy.x, dy.y); g.stroke(); g.globalAlpha = 1;
+  }
+  for(const f of s.flashes){
+    g.fillStyle = f.c;
+    if(f.t < 2) g.globalAlpha = (.08 + .4 * (.5 + .5 * Math.sin(f.t * 16))) * sc;
+    else g.globalAlpha = .9 * Math.min(1, (3 - f.t) / .3) * sc;
+    g.fillRect(0, 0, W, H);
+    g.globalAlpha = 1;
+  }
+  const ship = (x, y, a, k) => {
+    g.save(); g.translate(x, y); g.rotate(a * Math.PI / 180); g.scale(k, k);
+    g.fillStyle = s.ship.c; g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(0, -SP_R - 2); g.lineTo(SP_R * .8, SP_R); g.lineTo(0, SP_R * .5); g.lineTo(-SP_R * .8, SP_R); g.closePath();
+    g.fill(); g.stroke(); g.restore();
+  };
+  if(!dy) ship(s.ship.x, s.ship.y, s.ship.a, 1);
+  else if(dy.t < .6){
+    g.strokeStyle = s.ship.c; g.lineWidth = 3; g.globalAlpha = 1 - dy.t / .6;
+    for(let i = 0; i < 12; i++){
+      const an = i * Math.PI / 6, d = dy.t * 220;
+      g.beginPath(); g.moveTo(dy.x + Math.cos(an) * d * .6, dy.y + Math.sin(an) * d * .6); g.lineTo(dy.x + Math.cos(an) * d, dy.y + Math.sin(an) * d); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }else if(dy.t >= .8) ship(W / 2, H / 2, 0, Math.min(1, (dy.t - .8) / .5));
+}
+function spLoop(){
+  const id = ++spLoopId; spActive = true; spLast = performance.now(); spAcc = 0;
+  const f = now => {
+    if(!spActive || id !== spLoopId) return;
+    spAcc = Math.min(spAcc + (now - spLast) / 1000, .1); spLast = now;
+    while(spAcc >= SP_DT){ spStep(SP_DT); spAcc -= SP_DT; }
+    spDraw($('space-cv-1').getContext('2d'), sp);
+    send('space', sp);
+    requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+}
+function startSpace(){
+  if(spStarted) return;
+  spStarted = true; p1Stage = 7;
+  pfActive = false; pfLoopId++;
+  $('skip-btn').style.display = 'none';
+  setShelfBlocked(false);
+  sp = spFresh();
+  $('space-section-1').classList.add('visible');
+  setTimeout(() => { window.scrollTo({top:0, behavior:'smooth'}); spLoop(); }, 600);
+}
+function startSpaceView(){
+  spDraw($('space-cv-2').getContext('2d'), spFresh());
+  $('space-section-2').classList.add('visible');
+  setTimeout(() => window.scrollTo({top:0, behavior:'smooth'}), 600);
 }
 // Player 2 side: controls + live sync of the tetris grid
 function startMazeSpin(){
