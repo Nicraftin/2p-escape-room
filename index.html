@@ -159,6 +159,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .tetris-grid.letters .grid-cell{display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; padding:0;}
 .tetris-grid.letters .grid-cell.filled{color:transparent;}
 .space-cv{display:block; width:100%; max-width:480px; height:auto; aspect-ratio:1; margin:0 auto; border-radius:12px; box-shadow:0 0 0 2px var(--panel2), 0 10px 30px rgba(0,0,0,.35);}
+@property --spa{syntax:'<angle>'; inherits:false; initial-value:0deg;}
+@keyframes spaSpin{ to{--spa:360deg;} }
+@keyframes spaPulse{ 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.6);} }
+#sp-fx-out{position:fixed; z-index:40; pointer-events:none; opacity:0; transition:opacity 1.2s ease; border-radius:12px; box-shadow:0 0 26px 6px rgba(255,144,71,.55), 0 0 70px 16px rgba(255,90,40,.28); animation:spaPulse 1.6s ease-in-out infinite;}
+#sp-fx-out::before{content:''; position:absolute; inset:-5px; border-radius:17px; padding:5px; background:conic-gradient(from var(--spa), rgba(255,144,71,0), #FF9047, #ffe066, #FF9047, rgba(255,144,71,0) 60%); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation:spaSpin 3s linear infinite;}
+#sp-fx-in{position:fixed; inset:0; z-index:40; pointer-events:none; opacity:0; transition:opacity 1.2s ease; box-shadow:inset 0 0 70px 8px rgba(255,45,70,.6), inset 0 0 180px 30px rgba(255,45,70,.28); animation:spaPulse 1.1s ease-in-out infinite;}
+#sp-fx-in::before{content:''; position:absolute; inset:0; padding:5px; background:conic-gradient(from var(--spa), rgba(255,45,70,0), #ff2d46, #ffb3bd, #ff2d46, rgba(255,45,70,0) 60%); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation:spaSpin 2s linear infinite;}
+#sp-fx-out.on,#sp-fx-in.on{opacity:1;}
 #fin-flash{position:fixed; inset:0; background:#fff; z-index:70; pointer-events:none; opacity:0;}
 #game-timer.fin{color:#fff; padding:10px 26px; border-radius:16px; transition:top 3.2s cubic-bezier(.65,0,.35,1), transform 3.2s cubic-bezier(.65,0,.35,1), font-size 3.2s cubic-bezier(.65,0,.35,1), padding 3.2s ease;}
 @keyframes finGlow{ 0%,100%{text-shadow:0 0 12px #3ddc97, 0 0 30px rgba(61,220,151,.8), 0 0 60px rgba(61,220,151,.5); box-shadow:0 0 30px rgba(61,220,151,.35);} 50%{text-shadow:0 0 18px #7dffc4, 0 0 44px rgba(61,220,151,1), 0 0 90px rgba(61,220,151,.7); box-shadow:0 0 60px rgba(61,220,151,.6);} }
@@ -444,7 +452,7 @@ const SFX = (() => {
   document.addEventListener('visibilitychange', () => { if(document.hidden){ rollSet(0); creakSet(0); } else if(ctx) ensure(); });
   document.addEventListener('click', e => {
     const t = e.target && e.target.closest && e.target.closest('.role-btn, #screen-choose .big-btn, #ready-btn, #dc-overlay .big-btn');
-    if(t) S.ui();
+    if(t && !(t.id === 'ready-btn' && myRole && ready[3 - myRole])) S.ui();
   }, true);
   const S = {
     ui(){ if(!can('ui', 40)) return; tone(700, .06, {type:'triangle', vol:.18}); tone(1050, .05, {at:.03, vol:.12}); },
@@ -466,7 +474,7 @@ const SFX = (() => {
     cancel(){ if(!can('cancel', 60)) return; tone(500, .1, {type:'triangle', vol:.1, to:300}); },
     back(){ if(!can('back', 60)) return; tone(600, .18, {to:350, vol:.12, at:.08}); },
     lightHover(){ if(!can('lh', 120)) return; tone(1200, .12, {vol:.1}); tone(1800, .1, {at:.05, vol:.06}); },
-    charge(hex){ if(!can('charge', 100)) return; noise(.45, {f:300, to:3500, q:1.2, vol:.16, a:.18}); noise(.3, {type:'highpass', f:1500, to:5000, vol:.05, a:.15}); },
+    charge(hex){ if(!can('charge', 100)) return; noise(.6, {f:250, to:1100, q:.5, vol:.15, a:.22}); noise(.55, {type:'lowpass', f:450, to:1200, vol:.07, a:.22}); },
     rotate(dir){ if(!can('rot', 60)) return; const up = dir > 0; noise(.16, {f:up ? 700 : 2200, to:up ? 2200 : 700, q:2, vol:.12}); tone(up ? 400 : 500, .12, {to:up ? 600 : 330, type:'triangle', vol:.12}); },
     rotBtn(dir){ if(!can('rotb', 40)) return; tone(dir > 0 ? 560 : 420, .05, {type:'triangle', vol:.22}); noise(.02, {f:2500, vol:.1}); },
     rotUp(){ if(!can('rotu', 40)) return; tone(300, .04, {type:'triangle', vol:.1}); },
@@ -1449,7 +1457,7 @@ function pfInExit(){
 }
 // Cube slides to the middle of the doorway, then shrinks and spins into it while the door flashes
 function pfEnterExit(done){
-  SFX.door(); const T = pfT, sz = PF_S * T;
+  const T = pfT, sz = PF_S * T;
   const tx = (pfExit[0] + pfExit[2]) / 2 * T - sz/2;
   const ty = (pfExit[1] + (pfExit[3] - pfExit[1]) * .58) * T - sz/2;
   const door = document.querySelector('#plat .pdoor');
@@ -1876,6 +1884,13 @@ function spSfx(s){
     setTimeout(() => { if(ok) SFX.right(); else SFX.wrong(); }, (n - 1) * 300 + 350);
   }
 }
+let spFxOut = null, spFxIn = null;
+function spBossFx(g, s){
+  if(!spFxOut){ spFxOut = document.createElement('div'); spFxOut.id = 'sp-fx-out'; spFxIn = document.createElement('div'); spFxIn.id = 'sp-fx-in'; document.body.appendChild(spFxOut); document.body.appendChild(spFxIn); }
+  const P = s.pud, alive = !!(s.boss && P && P.dead < 0 && !s.dying && !s.leaving && !finStarted), ph = alive ? spPhase(P) : 0;
+  spFxOut.classList.toggle('on', ph >= 1); spFxIn.classList.toggle('on', ph >= 2);
+  if(s.boss){ const r = g.canvas.getBoundingClientRect(); spFxOut.style.left = r.left + 'px'; spFxOut.style.top = r.top + 'px'; spFxOut.style.width = r.width + 'px'; spFxOut.style.height = r.height + 'px'; }
+}
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
   g.globalAlpha = 1;
@@ -1883,7 +1898,7 @@ function spDraw(g, s){
   spBackground(g, T, s.boss, s.boss ? Math.min(1, (s.bossT === undefined ? 99 : s.bossT) / 2.5) : 0);
   if(s.tet) spTetDraw(g, s.tet, T, sc);
   spShowWords(g.canvas.id.slice(-1), s.words || [], !!(s.dying || s.leaving));
-  spTitle(g.canvas.id.slice(-1), s); spSfx(s);
+  spTitle(g.canvas.id.slice(-1), s); spSfx(s); spBossFx(g, s);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
   if(s.pud) spPudDraw(g, s.pud, s.ship, T);
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
@@ -1935,7 +1950,7 @@ function spDraw(g, s){
     g.beginPath(); g.arc(0, 0, 28, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = C.red; g.lineWidth = 4;
     g.beginPath(); g.arc(0, 0, 28, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, p)); g.stroke();
-    g.fillStyle = '#b04dff'; g.beginPath(); g.arc(0, 0, e.r * k, 0, Math.PI * 2); g.fill();
+    g.shadowColor = '#b04dff'; g.shadowBlur = 10; g.fillStyle = '#b04dff'; g.beginPath(); g.arc(0, 0, e.r * k, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
     g.fillStyle = C.red; g.beginPath(); g.arc(0, 0, 6, 0, Math.PI * 2); g.fill();
   });
   for(const m of s.movers) at(m.x, m.y, () => {
@@ -2047,6 +2062,7 @@ let finStarted = false, finN = 200, finDone = false, timerStop = null, finBtn = 
 function startFinale(){
   if(finStarted) return;
   finStarted = true; finN = 200; spActive = false; spLoopId++; SFX.crash();
+  if(spFxOut){ spFxOut.classList.remove('on'); spFxIn.classList.remove('on'); }
   const scr = document.querySelector('.screen.active');
   const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
   flash.animate([{opacity:0}, {opacity:.95, offset:.15}, {opacity:0}], {duration:900, easing:'ease-out'}).onfinish = () => flash.remove();
