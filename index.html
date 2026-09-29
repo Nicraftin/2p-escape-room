@@ -348,7 +348,7 @@ let dragPrevKey = null;
 const SFX = (() => {
   let ctx = null, master = null, nbuf = null, live = 0, rollN = null, creakN = null;
   const last = {};
-  const NOTES = {}; NOTES[C.red] = 523.25; NOTES[C.orange] = 587.33; NOTES[C.yellow] = 659.25; NOTES[C.green] = 783.99; NOTES[C.blue] = 880;
+  const NOTES = {}; NOTES[C.red] = 440; NOTES[C.orange] = 523.25; NOTES[C.yellow] = 659.25; NOTES[C.green] = 698.46; NOTES[C.blue] = 880;
   function ensure(){
     if(!ctx){
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -449,9 +449,9 @@ const SFX = (() => {
   const S = {
     ui(){ if(!can('ui', 40)) return; tone(700, .06, {type:'triangle', vol:.18}); tone(1050, .05, {at:.03, vol:.12}); },
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
-    count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { bell(784, 0, .25); bell(988, 0, .22); bell(1175, 0, .2); } },
+    count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
     // Player 1's buttons all look identical -> one identical sound
-    btn(){ if(!can('btn', 30)) return; noise(.035, {f:2200, q:.8, vol:.25}); tone(260, .07, {type:'triangle', vol:.3, to:140}); },
+    btn(){ if(!can('btn', 30)) return; noise(.05, {f:3000, q:.8, vol:.15}); tone(210, .16, {type:'sine', vol:.5, to:70}); },
     // Player 2 sees a colour -> pitch depends on the colour
     note(hex){ if(!can('note', 30)) return; bell(NOTES[hex] || 440, 0, .28); },
     lock(){ if(!can('lock', 80)) return; tone(330, .09, {type:'square', vol:.06, lp:900}); tone(220, .12, {type:'square', vol:.06, lp:900, at:.07}); },
@@ -466,7 +466,7 @@ const SFX = (() => {
     cancel(){ if(!can('cancel', 60)) return; tone(500, .1, {type:'triangle', vol:.1, to:300}); },
     back(){ if(!can('back', 60)) return; tone(600, .18, {to:350, vol:.12, at:.08}); },
     lightHover(){ if(!can('lh', 120)) return; tone(1200, .12, {vol:.1}); tone(1800, .1, {at:.05, vol:.06}); },
-    charge(hex){ if(!can('charge', 100)) return; tone(180, .4, {type:'sawtooth', to:1400, vol:.1, lp:2500}); noise(.4, {f:600, to:5000, q:2, vol:.1}); bell(NOTES[hex] || 440, .4, .32); },
+    charge(hex){ if(!can('charge', 100)) return; noise(.45, {f:300, to:3500, q:1.2, vol:.16, a:.18}); noise(.3, {type:'highpass', f:1500, to:5000, vol:.05, a:.15}); },
     rotate(dir){ if(!can('rot', 60)) return; const up = dir > 0; noise(.16, {f:up ? 700 : 2200, to:up ? 2200 : 700, q:2, vol:.12}); tone(up ? 400 : 500, .12, {to:up ? 600 : 330, type:'triangle', vol:.12}); },
     rotBtn(dir){ if(!can('rotb', 40)) return; tone(dir > 0 ? 560 : 420, .05, {type:'triangle', vol:.22}); noise(.02, {f:2500, vol:.1}); },
     rotUp(){ if(!can('rotu', 40)) return; tone(300, .04, {type:'triangle', vol:.1}); },
@@ -475,7 +475,7 @@ const SFX = (() => {
     submit(){ if(!can('submit', 60)) return; tone(700, .05, {type:'triangle', vol:.2}); noise(.03, {f:2500, vol:.1}); },
     wrong(){ if(!can('wrong', 200)) return; tone(150, .4, {type:'sawtooth', vol:.2, lp:700, at:.06}); tone(158, .4, {type:'sawtooth', vol:.2, lp:700, at:.06}); tone(110, .45, {type:'square', vol:.1, lp:400, to:80, at:.1}); },
     right(){ if(!can('right', 200)) return; [523.25, 659.25, 783.99, 987.77, 1318.5].forEach((f, i) => bell(f, .05 + i * .07, .2)); },
-    received(){ if(!can('recv', 100)) return; for(let i = 0; i < 6; i++) tone(600 + i * 90, .05, {type:'triangle', vol:.08, at:i * .04}); },
+    received(){ if(!can('recv', 100)) return; for(let i = 0; i < 4; i++) tone(600 + i * 90, .05, {type:'triangle', vol:.08, at:i * .04}); },
     bump(s){ if(!can('bump', 45)) return; const v = Math.min(1, s / 300); tone(170 + Math.random() * 40, .07, {type:'triangle', vol:.06 + .3 * v, to:100}); noise(.03, {type:'lowpass', f:2500, vol:.05 + .12 * v}); },
     roll: rollSet,
     creak: creakSet,
@@ -492,7 +492,7 @@ const SFX = (() => {
     door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
     grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
     // ----- Player 2's control buttons look different -> different pitch per button -----
-    ctl(k){ if(!can('ctl', 30)) return; tone({l:330, r:392, u:494}[k] || 400, .06, {type:'triangle', vol:.2}); noise(.02, {f:2500, vol:.08}); },
+    ctl(k){ if(!can('ctl', 30)) return; noise(.03, {f:2500, q:.8, vol:.2}); tone(180, .04, {type:'triangle', vol:.12, to:120}); },
     // ----- space minigame (both players see the same thing) -----
     shoot(){ if(!can('shoot', 70)) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
     boom(){ if(!can('boom', 60)) return; noise(.3, {type:'lowpass', f:1800, to:200, vol:.25}); tone(140, .25, {to:50, vol:.3}); },
@@ -555,7 +555,7 @@ function startJoin(){
   peer.on('error', err => { $('connect-err').textContent = 'Connection error: ' + err.type; });
 }
 
-function wireConn(){ SFX.connect();
+function wireConn(){
   conn.on('data', rx);
   watchConn(conn);
   show('screen-ready');
@@ -1031,7 +1031,7 @@ function onDragUp(e){
     dragState.ghost.remove();
     if(dragState.fromCharged){
       if(ok) setPieceOnLight(false);
-      else { SFX.back(); placeChargedPiece(dragState.offsets, dragState.color); }
+      else { placeChargedPiece(dragState.offsets, dragState.color); }
     }
   }
   clearPreview();
@@ -1062,7 +1062,7 @@ function colorizeAtLight(ghost, offsets){
 }
 let chargedAngle = 0;
 function sendRotGlow(on){ send('rotglow', {on}); }
-function applyRotGlow(on){ if(on) SFX.glow(); document.querySelectorAll('#rotate-shelf .rot-btn').forEach(b => b.classList.toggle('glow', !!on)); }
+function applyRotGlow(on){ document.querySelectorAll('#rotate-shelf .rot-btn').forEach(b => b.classList.toggle('glow', !!on)); }
 // 90 degree turn of a cell list (dir > 0 clockwise); result stays normalised to start at row/col 0
 function rotateOffsets(offsets, dir){
   const maxR = Math.max(...offsets.map(o => o[0])), maxC = Math.max(...offsets.map(o => o[1]));
@@ -1283,15 +1283,17 @@ function startMazeLoop(){
   requestAnimationFrame(f);
 }
 // Animated return to the start: maze spins back to 0, ball pops out and reappears at the start
+let mzQuiet = false;
 function mazeReset(){
-  mzActive = false; mzLoopId++; SFX.roll(0); SFX.creak(0); SFX.rewind(); mzHit = 0;
+  const quiet = mzQuiet; mzQuiet = false;
+  mzActive = false; mzLoopId++; SFX.roll(0); SFX.creak(0); if(!quiet) SFX.rewind(); mzHit = 0;
   const m = $('maze');
   m.style.transition = 'transform .8s ease'; m.style.transform = 'rotate(0deg)';
   ballEl.style.transition = 'transform .25s ease, opacity .25s ease'; ballEl.style.opacity = '0';
   setTimeout(() => {
     if(platMode) return;
     mz = {x:MS/2, y:MS/2, vx:0, vy:0, a:0, dir:0};
-    ballEl.style.transition = 'none'; ballEl.style.transform = 'scale(0)'; drawMaze(); SFX.pop();
+    ballEl.style.transition = 'none'; ballEl.style.transform = 'scale(0)'; drawMaze(); if(!quiet) SFX.pop();
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ballEl.style.transition = 'transform .3s ease, opacity .3s ease';
       ballEl.style.opacity = '1'; ballEl.style.transform = 'scale(1)';
@@ -1299,7 +1301,7 @@ function mazeReset(){
   }, 450);
   setTimeout(() => { m.style.transition = ''; if(!platMode) startMazeLoop(); }, 850);
 }
-function mazeDie(){ SFX.zap();
+function mazeDie(){ SFX.zap(); mzQuiet = true;
   ballEl.style.transition = 'transform .25s ease'; ballEl.style.transform = 'scale(1.8)';
   mazeReset();
 }
@@ -2142,7 +2144,7 @@ function startSpace(){
   pfActive = false; pfLoopId++;
   setShelfBlocked(false);
   sp = spFresh();
-  $('space-section-1').classList.add('visible'); SFX.reveal();
+  $('space-section-1').classList.add('visible');
   setTimeout(() => { window.scrollTo({top:0, behavior:'smooth'}); spLoop(); }, 600);
 }
 function spSubmit(){
@@ -2175,7 +2177,7 @@ function startSpaceView(){
   $('tetris-grid').classList.add('letters');
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) gridCellEls[r][c].textContent = String.fromCharCode(65 + r * 5 + c);
   spDraw($('space-cv-2').getContext('2d'), spFresh());
-  $('space-section-2').classList.add('visible'); SFX.reveal();
+  $('space-section-2').classList.add('visible');
   setTimeout(() => window.scrollTo({top:0, behavior:'smooth'}), 600);
 }
 // Player 2 side: controls + live sync of the tetris grid
