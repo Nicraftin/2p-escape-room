@@ -451,7 +451,7 @@ const SFX = (() => {
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
     count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
     // Player 1's buttons all look identical -> one identical sound
-    btn(){ if(!can('btn', 30)) return; noise(.05, {f:3000, q:.8, vol:.15}); tone(210, .16, {type:'sine', vol:.5, to:70}); },
+    btn(){ if(!can('btn', 30)) return; noise(.012, {type:'highpass', f:3500, vol:.16, a:.001}); tone(1800, .02, {type:'square', vol:.05, lp:4000, a:.001}); noise(.018, {f:1400, q:2, vol:.1, a:.001, at:.022}); tone(700, .015, {type:'triangle', vol:.06, a:.001, at:.022}); },
     // Player 2 sees a colour -> pitch depends on the colour
     note(hex){ if(!can('note', 30)) return; bell(NOTES[hex] || 440, 0, .28); },
     lock(){ if(!can('lock', 80)) return; tone(330, .09, {type:'square', vol:.06, lp:900}); tone(220, .12, {type:'square', vol:.06, lp:900, at:.07}); },
@@ -492,21 +492,32 @@ const SFX = (() => {
     door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
     grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
     // ----- Player 2's control buttons look different -> different pitch per button -----
-    ctl(k){ if(!can('ctl', 30)) return; noise(.03, {f:2500, q:.8, vol:.2}); tone(180, .04, {type:'triangle', vol:.12, to:120}); },
+    ctl(k){ if(!can('ctl', 30)) return; noise(.06, {type:'lowpass', f:900, vol:.035, a:.012}); tone(200, .1, {type:'sine', vol:.04, a:.015, to:170}); },
     // ----- space minigame (both players see the same thing) -----
-    shoot(){ if(!can('shoot', 70)) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
+    shoot(){ if(!can()) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
     boom(){ if(!can('boom', 60)) return; noise(.3, {type:'lowpass', f:1800, to:200, vol:.25}); tone(140, .25, {to:50, vol:.3}); },
     spawnStatic(){ if(!can('spst', 80)) return; tone(150, .5, {to:600, type:'sawtooth', vol:.08, lp:1200}); noise(.3, {f:800, to:200, q:2, vol:.06}); },
     spawnMover(){ if(!can('spmv', 80)) return; noise(.35, {f:500, to:2500, q:3, vol:.1}); tone(700, .3, {to:1200, type:'triangle', vol:.1}); },
     laserWarn(){ if(!can('lw', 100)) return; for(let i = 0; i < 3; i++) tone(1000, .06, {at:i * .12, type:'square', vol:.05, lp:2500}); },
-    laserFire(){ if(!can('lf', 100)) return; noise(.5, {f:4000, to:300, q:.6, vol:.25}); tone(90, .5, {type:'sawtooth', vol:.18, lp:500, to:60}); },
-    flashWarn(hex){ if(!can('fw', 100)) return; bell(NOTES[hex] || 440, 0, .14); },
+    laserFire(){ if(!can('lf', 100)) return; tone(3200, .22, {type:'sawtooth', vol:.12, to:180, lp:6000, a:.002}); tone(1600, .3, {type:'square', vol:.06, to:120, lp:3500, a:.002}); tone(220, .5, {type:'sawtooth', vol:.09, lp:1400, to:200, a:.02, at:.02}); tone(440, .5, {type:'square', vol:.04, lp:1800, to:400, a:.02, at:.02}); noise(.35, {type:'highpass', f:4000, to:9000, vol:.06, a:.005}); },
+    flashWarn(hex){ if(!can('fw', 60)) return; const f = NOTES[hex] || 440; tone(f, .16, {type:'square', vol:.07, lp:2200, a:.006}); tone(f * 2, .12, {type:'triangle', vol:.03, a:.006}); },
     flashHit(hex){ if(!can('fh', 100)) return; tone((NOTES[hex] || 440) / 2, .4, {type:'triangle', vol:.15}); noise(.3, {type:'highpass', f:3000, vol:.15}); },
     edgeWarn(){ if(!can('ew', 100)) return; tone(120, .6, {type:'sawtooth', vol:.08, lp:400, to:200}); tone(1200, .08, {type:'square', vol:.04, lp:2500}); },
-    spikeOut(){ if(!can('so', 100)) return; noise(.12, {f:5000, q:1, vol:.3}); tone(1800, .1, {type:'square', vol:.08, to:400, lp:4000}); tone(80, .15, {vol:.3}); },
+    spikeOut(){ if(!can('so', 100)) return; noise(.22, {f:1200, to:9000, q:1.6, vol:.2, a:.06}); noise(.14, {type:'highpass', f:5000, to:10000, vol:.1, a:.05}); tone(4300, .5, {vol:.03, a:.05, at:.08}); tone(5750, .4, {vol:.02, a:.05, at:.08}); tone(3100, .35, {vol:.02, a:.05, at:.09}); },
     tetWarn(){ if(!can('tw', 100)) return; [988, 1319, 1568].forEach((f, i) => tone(f, .15, {at:i * .07, vol:.1})); },
     tetOk(){ if(!can('tok', 100)) return; [784, 1047, 1319].forEach((f, i) => bell(f, i * .08, .2)); },
-    shipDie(){ if(!can('sd', 150)) return; noise(.5, {type:'lowpass', f:3000, to:150, vol:.3}); tone(400, .6, {to:40, type:'sawtooth', vol:.2, lp:2000}); },
+    shipDie(){ if(!can('sd', 150)) return;
+      noise(.06, {type:'highpass', f:1500, vol:.3, a:.001});
+      noise(1.1, {type:'lowpass', f:2600, to:120, vol:.38, a:.004});
+      tone(110, .9, {type:'sine', vol:.45, to:28, a:.004});
+      tone(70, 1, {type:'sawtooth', vol:.16, lp:260, to:30, a:.01});
+      noise(.7, {f:1800, to:300, q:5, vol:.12, a:.01});
+      tone(520, .5, {type:'sawtooth', vol:.07, lp:1500, to:60, a:.01, at:.03});
+      tone(340, .45, {type:'square', vol:.05, lp:900, to:45, a:.01, at:.05});
+      noise(.35, {type:'lowpass', f:1400, to:100, vol:.22, at:.18, a:.005});
+      noise(.5, {type:'lowpass', f:900, to:80, vol:.2, at:.4, a:.01});
+      for(let i = 0; i < 9; i++) noise(.04 + Math.random() * .05, {type:'highpass', f:2500 + Math.random() * 3000, vol:.06 + Math.random() * .06, at:.15 + Math.random() * .7, a:.001});
+      noise(.9, {type:'highpass', f:5000, to:1500, vol:.04, at:.25, a:.15}); },
     shipIn(){ if(!can('si', 150)) return; tone(200, .4, {to:900, vol:.15}); noise(.3, {f:600, to:3000, q:2, vol:.06}); },
     bossHit(){ if(!can('bh', 60)) return; tone(420, .06, {type:'square', vol:.06, to:250, lp:1500}); },
     bossIn(){ if(!can('bi', 300)) return; noise(1.2, {type:'lowpass', f:200, to:500, vol:.3, a:.4}); tone(60, 1.5, {type:'sawtooth', vol:.15, lp:200, to:110}); },
@@ -1473,6 +1484,7 @@ function startPlatformer(){
 }
 // --- Level 7: space minigame (simulated on Player 1's side, drawn on both screens; Player 2's input arrives through pfIn) ---
 const SP_W = 480, SP_H = 480, SP_R = 12, SP_SPEED = 200, SP_ROT = 90, SP_BSPEED = 460, SP_CD = .25, SP_DT = 1/120, SP_LW = 36;
+let spShotN = 0;
 let sp = null, spStarted = false, spActive = false, spLoopId = 0, spLast = 0, spAcc = 0;
 const SP_WORDS = new Set(`abhor abort adept adios adopt aegis agios aglow befit begin begot below bijou blowy ceils chimp chino chips chops clops deist deity demos dinos dirty empty films filmy first fisty flops forty ghost gimps gipsy glory horst horsy`.split(' '));
 let spView = null, spMode = false, spWon = false;
@@ -1725,7 +1737,7 @@ function spPudDraw(g, p, ship, T){
 }
 const spClamp = v => Math.max(SP_R, Math.min(SP_W - SP_R, v));
 function spFresh(color, boss){
-  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, edge:null, words:[], bubble:null, deaths:0, leaving:false, tet:null};
+  return {boss: !!boss, t:0, next:10, ship:{x:SP_W/2, y:SP_H/2, a:0, c:color || C.yellow, cd:0, mv:0}, bullets:[], statics:[], lasers:[], flashes:[], movers:[], dying:null, edge:null, words:[], bubble:null, deaths:0, leaving:false, tet:null, shots:spShotN};
 }
 function spEvent(){
   const s = sp, sh = s.ship;
@@ -1785,7 +1797,7 @@ function spStep(dt){
   sh.y = spClamp(sh.y + Math.sin(r) * mv * SP_SPEED * dt);
   sh.cd -= dt;
   if(pfIn.u && sh.cd <= 0){
-    sh.cd = SP_CD;
+    sh.cd = SP_CD; spShotN++; s.shots = spShotN;
     s.bullets.push({x: sh.x + Math.sin(r) * SP_R, y: sh.y - Math.cos(r) * SP_R, vx: Math.sin(r) * SP_BSPEED, vy: -Math.cos(r) * SP_BSPEED});
   }
   for(const b of s.bullets){
@@ -1835,20 +1847,21 @@ let spPrev = null;
 // Both players see the same space game, so sounds are triggered from what's drawn (state changes), identically on both screens
 function spSfx(s){
   const P = s.pud, pr = spPrev, b = s.bubble;
-  const cur = {bul: s.bullets.length, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
+  const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
   spPrev = cur;
   if(!pr) return;
   const dead = cur.dy || pr.dy;
   if(cur.dy && !pr.dy) SFX.shipDie();
   if(!cur.dy && pr.dy) SFX.shipIn();
   if(dead) return;
-  if(cur.bul > pr.bul) SFX.shoot();
+  if(cur.bul > pr.bul){ const n = Math.min(4, cur.bul - pr.bul); for(let i = 0; i < n; i++) setTimeout(() => SFX.shoot(), i * 40); }
   if(cur.en < pr.en) SFX.boom();
   if(cur.st > pr.st) SFX.spawnStatic();
   if(cur.mv > pr.mv) SFX.spawnMover();
   if(cur.ls > pr.ls) SFX.laserWarn();
   if(cur.lf > pr.lf) SFX.laserFire();
   if(cur.fl > pr.fl) SFX.flashWarn(s.flashes[s.flashes.length - 1].c);
+  else for(const f of cur.fp){ if(f.n < 1) continue; const q = pr.fp.find(x => x.c === f.c); if(q && q.n >= 0 && f.n > q.n) SFX.flashWarn(f.c); }
   if(cur.fh > pr.fh){ const f = s.flashes.find(f => f.t >= 2); if(f) SFX.flashHit(f.c); }
   if(cur.edge && !pr.edge) SFX.edgeWarn();
   if(cur.eh && !pr.eh) SFX.spikeOut();
