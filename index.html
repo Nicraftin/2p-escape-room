@@ -451,7 +451,7 @@ const SFX = (() => {
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
     count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
     // Player 1's buttons all look identical -> one identical sound
-    btn(){ if(!can('btn', 30)) return; noise(.012, {type:'highpass', f:3500, vol:.16, a:.001}); tone(1800, .02, {type:'square', vol:.05, lp:4000, a:.001}); noise(.018, {f:1400, q:2, vol:.1, a:.001, at:.022}); tone(700, .015, {type:'triangle', vol:.06, a:.001, at:.022}); },
+    btn(){ if(!can('btn', 30)) return; noise(.018, {f:1400, q:2, vol:.1, a:.001, at:.022}); tone(700, .015, {type:'triangle', vol:.06, a:.001, at:.022}); },
     // Player 2 sees a colour -> pitch depends on the colour
     note(hex){ if(!can('note', 30)) return; bell(NOTES[hex] || 440, 0, .28); },
     lock(){ if(!can('lock', 80)) return; tone(330, .09, {type:'square', vol:.06, lp:900}); tone(220, .12, {type:'square', vol:.06, lp:900, at:.07}); },
@@ -492,31 +492,30 @@ const SFX = (() => {
     door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
     grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
     // ----- Player 2's control buttons look different -> different pitch per button -----
-    ctl(k){ if(!can('ctl', 30)) return; noise(.06, {type:'lowpass', f:900, vol:.035, a:.012}); tone(200, .1, {type:'sine', vol:.04, a:.015, to:170}); },
+    ctl(k){ if(!can('ctl', 30)) return; noise(.06, {type:'lowpass', f:900, vol:.14, a:.012}); tone(200, .1, {type:'sine', vol:.16, a:.015, to:170}); },
     // ----- space minigame (both players see the same thing) -----
     shoot(){ if(!can()) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
     boom(){ if(!can('boom', 60)) return; noise(.3, {type:'lowpass', f:1800, to:200, vol:.25}); tone(140, .25, {to:50, vol:.3}); },
     spawnStatic(){ if(!can('spst', 80)) return; tone(150, .5, {to:600, type:'sawtooth', vol:.08, lp:1200}); noise(.3, {f:800, to:200, q:2, vol:.06}); },
     spawnMover(){ if(!can('spmv', 80)) return; noise(.35, {f:500, to:2500, q:3, vol:.1}); tone(700, .3, {to:1200, type:'triangle', vol:.1}); },
     laserWarn(){ if(!can('lw', 100)) return; for(let i = 0; i < 3; i++) tone(1000, .06, {at:i * .12, type:'square', vol:.05, lp:2500}); },
-    laserFire(){ if(!can('lf', 100)) return; tone(3200, .22, {type:'sawtooth', vol:.12, to:180, lp:6000, a:.002}); tone(1600, .3, {type:'square', vol:.06, to:120, lp:3500, a:.002}); tone(220, .5, {type:'sawtooth', vol:.09, lp:1400, to:200, a:.02, at:.02}); tone(440, .5, {type:'square', vol:.04, lp:1800, to:400, a:.02, at:.02}); noise(.35, {type:'highpass', f:4000, to:9000, vol:.06, a:.005}); },
+    laserFire(){ if(!can('lf', 100)) return; tone(3200, .22, {type:'sawtooth', vol:.12, to:180, lp:6000, a:.002}); tone(1600, .3, {type:'square', vol:.06, to:120, lp:3500, a:.002}); noise(.35, {type:'highpass', f:4000, to:9000, vol:.06, a:.005}); },
     flashWarn(hex){ if(!can('fw', 60)) return; const f = NOTES[hex] || 440; tone(f, .16, {type:'square', vol:.07, lp:2200, a:.006}); tone(f * 2, .12, {type:'triangle', vol:.03, a:.006}); },
-    flashHit(hex){ if(!can('fh', 100)) return; tone((NOTES[hex] || 440) / 2, .4, {type:'triangle', vol:.15}); noise(.3, {type:'highpass', f:3000, vol:.15}); },
+    flashHit(hex){ if(!can('fh', 100)) return; tone((NOTES[hex] || 440) / 2, .4, {type:'triangle', vol:.15}); },
     edgeWarn(){ if(!can('ew', 100)) return; tone(120, .6, {type:'sawtooth', vol:.08, lp:400, to:200}); tone(1200, .08, {type:'square', vol:.04, lp:2500}); },
     spikeOut(){ if(!can('so', 100)) return; noise(.22, {f:1200, to:9000, q:1.6, vol:.2, a:.06}); noise(.14, {type:'highpass', f:5000, to:10000, vol:.1, a:.05}); tone(4300, .5, {vol:.03, a:.05, at:.08}); tone(5750, .4, {vol:.02, a:.05, at:.08}); tone(3100, .35, {vol:.02, a:.05, at:.09}); },
     tetWarn(){ if(!can('tw', 100)) return; [988, 1319, 1568].forEach((f, i) => tone(f, .15, {at:i * .07, vol:.1})); },
     tetOk(){ if(!can('tok', 100)) return; [784, 1047, 1319].forEach((f, i) => bell(f, i * .08, .2)); },
     shipDie(){ if(!can('sd', 150)) return;
       noise(.06, {type:'highpass', f:1500, vol:.3, a:.001});
-      noise(1.1, {type:'lowpass', f:2600, to:120, vol:.38, a:.004});
-      tone(110, .9, {type:'sine', vol:.45, to:28, a:.004});
-      tone(70, 1, {type:'sawtooth', vol:.16, lp:260, to:30, a:.01});
+      noise(1.1, {type:'lowpass', f:2600, to:120, vol:.27, a:.004});
+      tone(110, .9, {type:'sine', vol:.32, to:28, a:.004});
+      tone(70, 1, {type:'sawtooth', vol:.113, lp:260, to:30, a:.01});
       noise(.7, {f:1800, to:300, q:5, vol:.12, a:.01});
       tone(520, .5, {type:'sawtooth', vol:.07, lp:1500, to:60, a:.01, at:.03});
       tone(340, .45, {type:'square', vol:.05, lp:900, to:45, a:.01, at:.05});
       noise(.35, {type:'lowpass', f:1400, to:100, vol:.22, at:.18, a:.005});
       noise(.5, {type:'lowpass', f:900, to:80, vol:.2, at:.4, a:.01});
-      for(let i = 0; i < 9; i++) noise(.04 + Math.random() * .05, {type:'highpass', f:2500 + Math.random() * 3000, vol:.06 + Math.random() * .06, at:.15 + Math.random() * .7, a:.001});
       noise(.9, {type:'highpass', f:5000, to:1500, vol:.04, at:.25, a:.15}); },
     shipIn(){ if(!can('si', 150)) return; tone(200, .4, {to:900, vol:.15}); noise(.3, {f:600, to:3000, q:2, vol:.06}); },
     bossHit(){ if(!can('bh', 60)) return; tone(420, .06, {type:'square', vol:.06, to:250, lp:1500}); },
@@ -529,7 +528,7 @@ const SFX = (() => {
     finTick(n){ if(!can('ft', 25)) return; tone(300 + (200 - n) * 3, .05, {type:'triangle', vol:.22}); noise(.02, {f:3000, vol:.08}); },
     bounce(){ if(!can('fb', 60)) return; tone(160, .06, {type:'triangle', vol:.14, to:100}); },
     shatter(){ if(!can('shatter', 200)) return; noise(.6, {type:'highpass', f:2500, to:6000, vol:.25}); for(let i = 0; i < 8; i++) tone(1500 + Math.random() * 2500, .1, {at:Math.random() * .3, vol:.06}); tone(100, .4, {to:40, vol:.3}); },
-    win(){ if(!can('win', 300)) return; [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach((f, i) => bell(f, .3 + i * .12, .24)); [1046.5, 1318.5, 1568].forEach(f => bell(f, 1.1, .22)); }
+    win(){ if(!can('win', 300)) return; [783.99, 1046.5].forEach((f, i) => bell(f, .3 + i * .2, .24)); }
   };
   return S;
 })();
@@ -2078,7 +2077,7 @@ function startFinale(){
 function finText(){ const n = $('fin-count'); if(n) n.textContent = finN + ' remaining'; }
 function finShowButton(){
   if(finDone) return;
-  const b = document.createElement('button'); b.id = 'fin-btn'; SFX.reveal();
+  const b = document.createElement('button'); b.id = 'fin-btn';
   b.innerHTML = '<span>Stop the timer</span>';
   document.body.appendChild(b); finBtn = b;
   const cnt = document.createElement('div'); cnt.id = 'fin-count'; document.body.appendChild(cnt); finText();
