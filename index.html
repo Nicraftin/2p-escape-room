@@ -459,13 +459,12 @@ const SFX = (() => {
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
     count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
     // Player 1's buttons all look identical -> one identical sound
-    btn(){ if(!can('btn', 30)) return; noise(.018, {f:1400, q:2, vol:.1, a:.001, at:.022}); tone(700, .015, {type:'triangle', vol:.06, a:.001, at:.022}); },
+    btn(){ if(!can('btn', 30)) return; noise(.018, {f:1400, q:2, vol:.141, a:.001, at:.022}); tone(700, .015, {type:'triangle', vol:.085, a:.001, at:.022}); },
     // Player 2 sees a colour -> pitch depends on the colour
     note(hex){ if(!can('note', 30)) return; bell(NOTES[hex] || 440, 0, .28); },
     lock(){ if(!can('lock', 80)) return; tone(330, .09, {type:'square', vol:.06, lp:900}); tone(220, .12, {type:'square', vol:.06, lp:900, at:.07}); },
     unlock(){ if(!can('unlock', 80)) return; tone(220, .09, {type:'square', vol:.06, lp:900}); tone(330, .12, {type:'square', vol:.06, lp:900, at:.07}); },
     solve(){ if(!can('solve', 200)) return; [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => bell(f, i * .09, .22)); },
-    reveal(d){ if(!can('reveal', 150)) return; d = d || 0; noise(.5, {f:400, to:3000, q:1.2, vol:.12, at:d, a:.08}); tone(880, .4, {at:d + .2, vol:.07}); tone(1320, .35, {at:d + .28, vol:.05}); },
     pick(){ if(!can('pick', 40)) return; tone(480, .05, {type:'triangle', vol:.15, to:700}); },
     hoverOk(){ if(!can('hov', 45)) return; tone(950, .03, {vol:.05}); },
     hoverBad(){ if(!can('hov', 70)) return; tone(200, .05, {type:'triangle', vol:.07}); },
@@ -504,7 +503,7 @@ const SFX = (() => {
     // ----- space minigame (both players see the same thing) -----
     shoot(){ if(!can()) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
     boom(){ if(!can('boom', 60)) return; noise(.3, {type:'lowpass', f:1800, to:200, vol:.25}); tone(140, .25, {to:50, vol:.3}); },
-    spawnStatic(){ if(!can('spst', 80)) return; tone(150, .5, {to:600, type:'sawtooth', vol:.08, lp:1200}); noise(.3, {f:800, to:200, q:2, vol:.06}); },
+    spawnStatic(){ if(!can('spst', 80)) return; tone(75, .5, {to:300, type:'sawtooth', vol:.08, lp:1200}); noise(.3, {f:400, to:100, q:2, vol:.06}); },
     spawnMover(){ if(!can('spmv', 80)) return; noise(.35, {f:500, to:2500, q:3, vol:.1}); tone(700, .3, {to:1200, type:'triangle', vol:.1}); },
     laserWarn(){ if(!can('lw', 100)) return; for(let i = 0; i < 3; i++) tone(1000, .06, {at:i * .12, type:'square', vol:.05, lp:2500}); },
     laserFire(){ if(!can('lf', 100)) return; tone(3200, .22, {type:'sawtooth', vol:.12, to:180, lp:6000, a:.002}); tone(1600, .3, {type:'square', vol:.06, to:120, lp:3500, a:.002}); noise(.35, {type:'highpass', f:4000, to:9000, vol:.06, a:.005}); },
@@ -541,6 +540,10 @@ const SFX = (() => {
     bossIn(){ if(!can('bi', 300)) return; noise(1.2, {type:'lowpass', f:200, to:500, vol:.3, a:.4}); tone(60, 1.5, {type:'sawtooth', vol:.15, lp:200, to:110}); },
     bossRoar(){ if(!can('br', 300)) return; noise(1.2, {f:400, to:150, q:1.5, vol:.3}); tone(90, 1.2, {type:'sawtooth', vol:.25, lp:500, to:55}); tone(93, 1.2, {type:'sawtooth', vol:.2, lp:500, to:57}); },
     bossDie(){ S.dramatic(); },
+    finaleSpam(){
+      const F = [() => S.zap(), () => S.boom(), () => S.shatter(), () => S.spikes(), () => S.spikeOut(), () => S.laserFire(), () => S.squash(), () => S.door(), () => S.rewind(), () => S.wrong(), () => S.deny(), () => S.bossRoar(), () => S.flashHit(), () => S.edgeWarn(), () => S.tetWarn(), () => S.sink(), () => S.grow(), () => S.pop(), () => S.bump(300), () => S.place(), () => S.land(), () => S.laserWarn(), () => S.spawnStatic(), () => S.spawnMover(), () => S.shipDie(), () => S.dramatic()];
+      for(let i = 0; i < 45; i++) setTimeout(() => F[Math.floor(Math.random() * F.length)](), 100 + i * 55 + Math.random() * 40);
+    },
     letter(i){ if(!can('letter', 60)) return; tone(280 + (i % 3) * 30, .04, {type:'square', vol:.06, lp:1500}); },
     // ----- finale -----
     crash(){ if(!can('crash', 300)) return; noise(1.5, {type:'lowpass', f:1200, to:100, vol:.35, a:.02}); tone(70, 1.5, {type:'sawtooth', vol:.25, lp:300, to:35}); for(let i = 0; i < 6; i++) noise(.25, {type:'lowpass', f:900, to:150, vol:.2, at:.3 + i * .25}); },
@@ -863,8 +866,8 @@ function skipPuzzle1(){
 let holdDir = 0;
 function rotHold(d){ SFX.rotBtn(d); holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; SFX.rotUp(); send('rotate', {dir: 0}); } }
-function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); SFX.reveal(.45); }
-function showLevel4Controls(){ SFX.reveal(); p1Stage = 4; setShelfBlocked(false); }
+function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); }
+function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); }
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
   if(broadcast) send('win', {}); if(myRole === 1) SFX.solve();
@@ -873,16 +876,16 @@ function completePuzzle1(broadcast){
 }
 function revealHeart(){
   if(myRole !== 1) return;
-  $('puzzle1-info').classList.add('visible'); SFX.reveal(.35);
+  $('puzzle1-info').classList.add('visible');
 }
 function unlockPuzzle2(){
   if(myRole !== 2) return;
-  $('puzzle2-section').classList.add('visible'); SFX.reveal();
+  $('puzzle2-section').classList.add('visible');
 }
 function revealColorPattern(){
   if(myRole !== 1) return;
   if(p1Stage < 2) p1Stage = 2;
-  $('stage2-row').classList.add('visible'); SFX.reveal();
+  $('stage2-row').classList.add('visible');
 }
 function buildColorPreview(){
   const el = $('color-preview');
@@ -1272,7 +1275,7 @@ function startLevel3(){
   if(mzStarted) return;
   mzStarted = true;
   buildMaze();
-  $('puzzle3-section').classList.add('visible'); SFX.reveal(.45);
+  $('puzzle3-section').classList.add('visible');
   setTimeout(() => {
     $('puzzle3-section').scrollIntoView({behavior:'smooth', block:'center'});
     if(!platMode) startMazeLoop();
@@ -1494,7 +1497,7 @@ function startPlatformer(){
   if(pfStarted) return;
   pfStarted = true; p1Stage = 5;
   buildPlatformer();
-  $('platformer-section').classList.add('visible'); SFX.reveal();
+  $('platformer-section').classList.add('visible');
   setTimeout(() => {
     $('platformer-section').scrollIntoView({behavior:'smooth', block:'center'});
     pfLoop();
@@ -1574,25 +1577,25 @@ function spShowWords(id, words, leaving){
 const SP_MSG = [
   "So you've chosen death...",
   "You really did choose death, want another one?",
-  "The 2 for 1 special, killing you for free!",
-  "When I said free deaths, I didn't mean three deaths",
-  "Another death four you, get it?",
-  "You need a hand? Can't count past 5 with just one",
-  "Wait, you have two hands? Doesn't look like it",
-  "Nevermind, you guys have 4 hands, 0 useful ones",
+  "The 2 deaths special, killing you for free!",
+  "When I said free deaths, I didn't mean 3 deaths",
+  "Another death 4 you, get it?",
+  "You need a hand? Can't count past 5 deaths with just 1",
+  "Wait, you have two hands and died 6 times?",
+  "Nevermind, you guys have 4 hands and died 7 times",
   "8 deaths? I'll flip that number 90 degrees",
-  "I'm hoping you're not a cat right now",
+  "9 deaths? I'm hoping you're not a cat right now",
   "Have you tried 10? Oh wait, yes you did",
-  "Unlike an easy skeleton, I can count past 10",
-  "You know what they say, 13th time is the charm",
-  () => 'You\'ve been here for ' + $('game-timer').textContent + ', please give up',
+  "Unlike an easy skeleton, I can count 11 deaths",
+  "You know what they say, 12th time is not the charm",
+  () => 'You\'ve died 13 times and stayed for ' + $('game-timer').textContent + ', wow',
   "14 me, 0 you two",
-  "A new milestone! 3 full hands!",
+  "A new milestone! 3 full hands! 15 deaths!",
   "16? With that age consider a driver's license for this ship",
   "So many deaths that there's nothing to say about 17",
   "18? Can we send you to jail now?",
   "Just one more death and we hit the big 20",
-  "Let's go! A death for every finger being used to fail!",
+  "Let's go! 20 deaths! I'm so not proud of you!",
   "Ngl, I'm kinda tired of counting too, I get you Sans",
   "Let's just say... 22 deaths"
 ];
@@ -2072,7 +2075,7 @@ function spBossStart(){
 let finStarted = false, finN = 200, finDone = false, timerStop = null, finBtn = null, finLast = 0, finVx = 1, finVy = 1, finX = 0, finY = 0, finMoving = false;
 function startFinale(){
   if(finStarted) return;
-  finStarted = true; finN = 200; spActive = false; spLoopId++; SFX.crash();
+  finStarted = true; finN = 200; spActive = false; spLoopId++; SFX.crash(); SFX.finaleSpam();
   if(spFxOut){ spFxOut.classList.remove('on'); spFxIn.classList.remove('on'); }
   const scr = document.querySelector('.screen.active');
   const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
@@ -2242,7 +2245,7 @@ function startLevel5(){
     startMazeSpin();
   }
   resetBoard();                 // fresh grid to build the path on (also syncs to Player 1)
-  $('controls-section').classList.add('visible'); SFX.reveal();
+  $('controls-section').classList.add('visible');
   setTimeout(() => $('controls-section').scrollIntoView({behavior:'smooth', block:'center'}), 600);
 }
 const inKb = {l:0,r:0,u:0}, inBt = {l:0,r:0,u:0};
