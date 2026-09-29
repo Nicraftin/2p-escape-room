@@ -483,7 +483,42 @@ const SFX = (() => {
     spikes(){ if(!can('spikes', 200)) return; noise(.5, {f:800, to:6000, q:3, vol:.12}); tone(1400, .3, {type:'sawtooth', vol:.05, lp:3000, to:2000}); tone(2200, .25, {vol:.05, at:.1}); },
     zap(){ if(!can('zap', 200)) return; noise(.25, {f:3000, to:400, q:.7, vol:.3}); tone(900, .25, {type:'sawtooth', to:90, vol:.2, lp:3000}); tone(70, .3, {vol:.35}); },
     rewind(){ if(!can('rewind', 200)) return; tone(1200, .75, {to:200, type:'triangle', vol:.1, lp:2000}); noise(.7, {f:300, to:2500, q:3, vol:.06, a:.2}); },
-    pop(){ if(!can('pop', 60)) return; tone(300, .12, {to:700, vol:.25}); }
+    pop(){ if(!can('pop', 60)) return; tone(300, .12, {to:700, vol:.25}); },
+    // ----- platformer (Player 1 sees the cube) -----
+    jump(){ if(!can('jump', 60)) return; tone(280, .15, {to:640, type:'square', vol:.07, lp:2000}); },
+    land(){ if(!can('land', 60)) return; tone(140, .08, {to:70, type:'triangle', vol:.2}); noise(.04, {type:'lowpass', f:1200, vol:.12}); },
+    step(){ if(!can('step', 80)) return; noise(.03, {type:'lowpass', f:900, vol:.06}); },
+    squash(){ if(!can('squash', 100)) return; tone(300, .25, {to:60, type:'sawtooth', vol:.15, lp:1200}); noise(.15, {type:'lowpass', f:2000, vol:.15}); },
+    door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
+    grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
+    // ----- Player 2's control buttons look different -> different pitch per button -----
+    ctl(k){ if(!can('ctl', 30)) return; tone({l:330, r:392, u:494}[k] || 400, .06, {type:'triangle', vol:.2}); noise(.02, {f:2500, vol:.08}); },
+    // ----- space minigame (both players see the same thing) -----
+    shoot(){ if(!can('shoot', 70)) return; tone(900, .08, {type:'square', vol:.05, to:300, lp:3000}); },
+    boom(){ if(!can('boom', 60)) return; noise(.3, {type:'lowpass', f:1800, to:200, vol:.25}); tone(140, .25, {to:50, vol:.3}); },
+    spawnStatic(){ if(!can('spst', 80)) return; tone(150, .5, {to:600, type:'sawtooth', vol:.08, lp:1200}); noise(.3, {f:800, to:200, q:2, vol:.06}); },
+    spawnMover(){ if(!can('spmv', 80)) return; noise(.35, {f:500, to:2500, q:3, vol:.1}); tone(700, .3, {to:1200, type:'triangle', vol:.1}); },
+    laserWarn(){ if(!can('lw', 100)) return; for(let i = 0; i < 3; i++) tone(1000, .06, {at:i * .12, type:'square', vol:.05, lp:2500}); },
+    laserFire(){ if(!can('lf', 100)) return; noise(.5, {f:4000, to:300, q:.6, vol:.25}); tone(90, .5, {type:'sawtooth', vol:.18, lp:500, to:60}); },
+    flashWarn(hex){ if(!can('fw', 100)) return; bell(NOTES[hex] || 440, 0, .14); },
+    flashHit(hex){ if(!can('fh', 100)) return; tone((NOTES[hex] || 440) / 2, .4, {type:'triangle', vol:.15}); noise(.3, {type:'highpass', f:3000, vol:.15}); },
+    edgeWarn(){ if(!can('ew', 100)) return; tone(120, .6, {type:'sawtooth', vol:.08, lp:400, to:200}); tone(1200, .08, {type:'square', vol:.04, lp:2500}); },
+    spikeOut(){ if(!can('so', 100)) return; noise(.12, {f:5000, q:1, vol:.3}); tone(1800, .1, {type:'square', vol:.08, to:400, lp:4000}); tone(80, .15, {vol:.3}); },
+    tetWarn(){ if(!can('tw', 100)) return; [988, 1319, 1568].forEach((f, i) => tone(f, .15, {at:i * .07, vol:.1})); },
+    tetOk(){ if(!can('tok', 100)) return; [784, 1047, 1319].forEach((f, i) => bell(f, i * .08, .2)); },
+    shipDie(){ if(!can('sd', 150)) return; noise(.5, {type:'lowpass', f:3000, to:150, vol:.3}); tone(400, .6, {to:40, type:'sawtooth', vol:.2, lp:2000}); },
+    shipIn(){ if(!can('si', 150)) return; tone(200, .4, {to:900, vol:.15}); noise(.3, {f:600, to:3000, q:2, vol:.06}); },
+    bossHit(){ if(!can('bh', 60)) return; tone(420, .06, {type:'square', vol:.06, to:250, lp:1500}); },
+    bossIn(){ if(!can('bi', 300)) return; noise(1.2, {type:'lowpass', f:200, to:500, vol:.3, a:.4}); tone(60, 1.5, {type:'sawtooth', vol:.15, lp:200, to:110}); },
+    bossRoar(){ if(!can('br', 300)) return; noise(1.2, {f:400, to:150, q:1.5, vol:.3}); tone(90, 1.2, {type:'sawtooth', vol:.25, lp:500, to:55}); tone(93, 1.2, {type:'sawtooth', vol:.2, lp:500, to:57}); },
+    bossDie(){ if(!can('bd', 300)) return; for(let i = 0; i < 6; i++) noise(.4, {type:'lowpass', f:2500, to:100, vol:.3, at:i * .15}); tone(200, 1.4, {to:30, type:'sawtooth', vol:.25, lp:1000}); },
+    letter(i){ if(!can('letter', 60)) return; tone(280 + (i % 3) * 30, .04, {type:'square', vol:.06, lp:1500}); },
+    // ----- finale -----
+    crash(){ if(!can('crash', 300)) return; noise(1.5, {type:'lowpass', f:1200, to:100, vol:.35, a:.02}); tone(70, 1.5, {type:'sawtooth', vol:.25, lp:300, to:35}); for(let i = 0; i < 6; i++) noise(.25, {type:'lowpass', f:900, to:150, vol:.2, at:.3 + i * .25}); },
+    finTick(n){ if(!can('ft', 25)) return; tone(300 + (200 - n) * 3, .05, {type:'triangle', vol:.22}); noise(.02, {f:3000, vol:.08}); },
+    bounce(){ if(!can('fb', 60)) return; tone(160, .06, {type:'triangle', vol:.14, to:100}); },
+    shatter(){ if(!can('shatter', 200)) return; noise(.6, {type:'highpass', f:2500, to:6000, vol:.25}); for(let i = 0; i < 8; i++) tone(1500 + Math.random() * 2500, .1, {at:Math.random() * .3, vol:.06}); tone(100, .4, {to:40, vol:.3}); },
+    win(){ if(!can('win', 300)) return; [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach((f, i) => bell(f, .3 + i * .12, .24)); [1046.5, 1318.5, 1568].forEach(f => bell(f, 1.1, .22)); }
   };
   return S;
 })();
@@ -1313,7 +1348,7 @@ function pfSetBoard(board){
   if(pfSolid.some(r => pfOverlaps(pf.x, pf.y, r))) pfRespawn(); // a block landed on the player: kill and send back to the start
 }
 function pfRespawn(){
-  pf.x = 2.1; pf.y = pfH - PF_S; pf.vx = 0; pf.vy = 0; pf.grounded = true;
+  pf.x = 2.1; pf.y = pfH - PF_S; pf.vx = 0; pf.vy = 0; pf.grounded = true; SFX.squash();
   pfDraw();
   pfEl.classList.remove('respawn'); void pfEl.offsetWidth; pfEl.classList.add('respawn');
 }
@@ -1344,7 +1379,7 @@ function buildPlatformer(){
 // Level 1 -> 2: fade the level out, grow the arena by 5 tiles, fade the taller level in
 function pfNextLevel(){
   if(pfLevel !== 1 || pfTrans || !pfStarted) return;
-  pfTrans = true; pfActive = false; pfLoopId++;
+  pfTrans = true; pfActive = false; pfLoopId++; SFX.grow();
   $('skip-btn').style.display = 'none';
   send('level6', {});
   const el = $('plat'), inner = $('plat-inner');
@@ -1360,10 +1395,11 @@ function pfNextLevel(){
   setTimeout(() => { pfTrans = false; pfLoop(); }, 2050);
 }
 function pfDraw(){ pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`; }
+let pfStepT = 0;
 function pfStep(){
-  const s = pf;
+  const s = pf, wasG = s.grounded;
   s.vx = (pfIn.r - pfIn.l) * PF_SPEED;
-  if(pfIn.u && s.grounded) s.vy = -PF_JUMP;
+  if(pfIn.u && s.grounded){ s.vy = -PF_JUMP; SFX.jump(); }
   s.vy = Math.min(s.vy + PF_G * PF_DT, 25);
   s.x = Math.max(0, Math.min(PF_N - PF_S, s.x + s.vx * PF_DT));
   for(const r of pfSolid) if(pfOverlaps(s.x, s.y, r)){
@@ -1376,6 +1412,8 @@ function pfStep(){
     s.vy = 0;
   }
   if(s.y >= pfH - PF_S){ s.y = pfH - PF_S; s.vy = 0; s.grounded = true; }
+  if(!wasG && s.grounded) SFX.land();
+  if(s.grounded && s.vx){ pfStepT += PF_DT; if(pfStepT > .17){ pfStepT = 0; SFX.step(); } }
 }
 function pfLoop(){
   const id = ++pfLoopId; pfActive = true; pfLast = performance.now(); pfAcc = 0;
@@ -1399,7 +1437,7 @@ function pfInExit(){
 }
 // Cube slides to the middle of the doorway, then shrinks and spins into it while the door flashes
 function pfEnterExit(done){
-  const T = pfT, sz = PF_S * T;
+  SFX.door(); const T = pfT, sz = PF_S * T;
   const tx = (pfExit[0] + pfExit[2]) / 2 * T - sz/2;
   const ty = (pfExit[1] + (pfExit[3] - pfExit[1]) * .58) * T - sz/2;
   const door = document.querySelector('#plat .pdoor');
@@ -1425,7 +1463,7 @@ function startPlatformer(){
   if(pfStarted) return;
   pfStarted = true; p1Stage = 5;
   buildPlatformer();
-  $('platformer-section').classList.add('visible');
+  $('platformer-section').classList.add('visible'); SFX.reveal();
   setTimeout(() => {
     $('platformer-section').scrollIntoView({behavior:'smooth', block:'center'});
     pfLoop();
@@ -1791,6 +1829,39 @@ function spStep(dt){
   if(s.pud && s.pud.dead < 0 && spPudHit(s.pud, sh.x, sh.y, 9)) cause = 'pudding';
   if(cause){ s.dying = {t:0, x:sh.x, y:sh.y, beam: src}; if(s.boss){ s.deaths++; if(s.pud && s.pud.dead < 0 && !s.pud.flee){ const fa = Math.atan2(s.pud.y - SP_H / 2, s.pud.x - SP_W / 2) || (Math.random() * Math.PI * 2); s.pud.flee = {t:0, vx: Math.cos(fa) * 240, vy: Math.sin(fa) * 240}; } } send('spdeath', {}); }
 }
+let spPrev = null;
+// Both players see the same space game, so sounds are triggered from what's drawn (state changes), identically on both screens
+function spSfx(s){
+  const P = s.pud, pr = spPrev, b = s.bubble;
+  const cur = {bul: s.bullets.length, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
+  spPrev = cur;
+  if(!pr) return;
+  const dead = cur.dy || pr.dy;
+  if(cur.dy && !pr.dy) SFX.shipDie();
+  if(!cur.dy && pr.dy) SFX.shipIn();
+  if(dead) return;
+  if(cur.bul > pr.bul) SFX.shoot();
+  if(cur.en < pr.en) SFX.boom();
+  if(cur.st > pr.st) SFX.spawnStatic();
+  if(cur.mv > pr.mv) SFX.spawnMover();
+  if(cur.ls > pr.ls) SFX.laserWarn();
+  if(cur.lf > pr.lf) SFX.laserFire();
+  if(cur.fl > pr.fl) SFX.flashWarn(s.flashes[s.flashes.length - 1].c);
+  if(cur.fh > pr.fh){ const f = s.flashes.find(f => f.t >= 2); if(f) SFX.flashHit(f.c); }
+  if(cur.edge && !pr.edge) SFX.edgeWarn();
+  if(cur.eh && !pr.eh) SFX.spikeOut();
+  if(cur.tet && cur.tet !== pr.tet) SFX.tetWarn();
+  if(cur.td && !pr.td) SFX.tetOk();
+  if(cur.pud && !pr.pud) SFX.bossIn();
+  if(cur.pf && !pr.pf) SFX.bossHit();
+  if(cur.pa && !pr.pa) SFX.bossRoar();
+  if(cur.pd && !pr.pd) SFX.bossDie();
+  if(b && (!pr.bub || b.t < pr.bt)){
+    const n = b.txt.length, ok = !!b.word;
+    for(let i = 0; i < n; i++) setTimeout(() => SFX.letter(i), i * 300);
+    setTimeout(() => { if(ok) SFX.right(); else SFX.wrong(); }, (n - 1) * 300 + 350);
+  }
+}
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
   g.globalAlpha = 1;
@@ -1798,7 +1869,7 @@ function spDraw(g, s){
   spBackground(g, T, s.boss, s.boss ? Math.min(1, (s.bossT === undefined ? 99 : s.bossT) / 2.5) : 0);
   if(s.tet) spTetDraw(g, s.tet, T, sc);
   spShowWords(g.canvas.id.slice(-1), s.words || [], !!(s.dying || s.leaving));
-  spTitle(g.canvas.id.slice(-1), s);
+  spTitle(g.canvas.id.slice(-1), s); spSfx(s);
   const at = (x, y, fn) => { g.save(); g.translate(x, y); g.scale(sc, sc); fn(); g.restore(); };
   if(s.pud) spPudDraw(g, s.pud, s.ship, T);
   for(const l of s.lasers) at(l.v ? l.p : W / 2, l.v ? H / 2 : l.p, () => {
@@ -1961,7 +2032,7 @@ function spBossStart(){
 let finStarted = false, finN = 200, finDone = false, timerStop = null, finBtn = null, finLast = 0, finVx = 1, finVy = 1, finX = 0, finY = 0, finMoving = false;
 function startFinale(){
   if(finStarted) return;
-  finStarted = true; finN = 200; spActive = false; spLoopId++;
+  finStarted = true; finN = 200; spActive = false; spLoopId++; SFX.crash();
   const scr = document.querySelector('.screen.active');
   const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
   flash.animate([{opacity:0}, {opacity:.95, offset:.15}, {opacity:0}], {duration:900, easing:'ease-out'}).onfinish = () => flash.remove();
@@ -1992,7 +2063,7 @@ function startFinale(){
 function finText(){ const n = $('fin-count'); if(n) n.textContent = finN + ' remaining'; }
 function finShowButton(){
   if(finDone) return;
-  const b = document.createElement('button'); b.id = 'fin-btn';
+  const b = document.createElement('button'); b.id = 'fin-btn'; SFX.reveal();
   b.innerHTML = '<span>Stop the timer</span>';
   document.body.appendChild(b); finBtn = b;
   const cnt = document.createElement('div'); cnt.id = 'fin-count'; document.body.appendChild(cnt); finText();
@@ -2012,16 +2083,17 @@ function finLoop(now){
     if(!finMoving){ finMoving = true; finVx = Math.random() < .5 ? -1 : 1; finVy = Math.random() < .5 ? -1 : 1; }
     const k = (100 - finN) / 100, spd = (110 + 1400 * k * k) * .7071;
     const mx = Math.max(0, innerWidth - finBtn.offsetWidth), my = Math.max(0, innerHeight - finBtn.offsetHeight);
-    finX += finVx * spd * dt; finY += finVy * spd * dt;
+    const ox = finVx, oy = finVy; finX += finVx * spd * dt; finY += finVy * spd * dt;
     if(finX < 0){ finX = 0; finVx = 1; } else if(finX > mx){ finX = mx; finVx = -1; }
     if(finY < 0){ finY = 0; finVy = 1; } else if(finY > my){ finY = my; finVy = -1; }
+    if(ox !== finVx || oy !== finVy) SFX.bounce();
     finBtn.style.transform = `translate(${finX}px,${finY}px)`;
   }
   requestAnimationFrame(finLoop);
 }
 function finClick(){ if(finDone || finN <= 0) return; if(myRole === 1) finApply(finN - 1); else send('finclick', {}); }
 function finApply(n){ if(finDone) return; const ms = n <= 0 ? performance.now() - gameT0 : 0; send('finn', {n, ms}); finSet(n, ms); }
-function finSet(n, ms){ if(n > finN) return; finN = n; finText(); if(n <= 0) finWin(ms); }
+function finSet(n, ms){ if(n > finN) return; if(n < finN) SFX.finTick(n); finN = n; finText(); if(n <= 0) finWin(ms); }
 function finVanish(){
   const b = finBtn, c = $('fin-count'); finBtn = null;
   if(c){ c.style.opacity = 0; setTimeout(() => c.remove(), 1100); }
@@ -2040,7 +2112,7 @@ function finVanish(){
   ], {duration:1700, easing:'linear', fill:'both'}).onfinish = () => b.remove();
   setTimeout(() => {
     const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
-    flash.animate([{opacity:0}, {opacity:.7, offset:.15}, {opacity:0}], {duration:800, easing:'ease-out'}).onfinish = () => flash.remove();
+    SFX.shatter(); flash.animate([{opacity:0}, {opacity:.7, offset:.15}, {opacity:0}], {duration:800, easing:'ease-out'}).onfinish = () => flash.remove();
     for(let i = 0; i < 16; i++){
       const s = document.createElement('div'); s.className = 'fin-shard'; document.body.appendChild(s);
       const an = i / 16 * Math.PI * 2 + Math.random() * .3, d = 120 + Math.random() * 160;
@@ -2054,7 +2126,7 @@ function finVanish(){
 function finWin(ms){
   if(finDone) return; finDone = true; timerStop = ms;
   clearInterval(hbTimer); $('dc-overlay').style.display = 'none';
-  finVanish();
+  finVanish(); SFX.win();
   const t = $('game-timer'); t.textContent = fmtTime(ms);
   t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
   const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
@@ -2070,13 +2142,13 @@ function startSpace(){
   pfActive = false; pfLoopId++;
   setShelfBlocked(false);
   sp = spFresh();
-  $('space-section-1').classList.add('visible');
+  $('space-section-1').classList.add('visible'); SFX.reveal();
   setTimeout(() => { window.scrollTo({top:0, behavior:'smooth'}); spLoop(); }, 600);
 }
 function spSubmit(){
   const tt = spView && spView.tet;
   if(tt && !tt.done){ // tetris attack active: check the piece instead of spelling a word
-    const ok = spShapeOk(tt.name);
+    const ok = spShapeOk(tt.name); if(!ok) SFX.wrong();
     if(ok) send('spshape', {});
     boardLocked = true;
     document.querySelectorAll('.grid-cell.filled').forEach(c => { c.style.setProperty('--fill', c.style.background); c.classList.add(ok ? 'right-fade' : 'wrong-fade'); });
@@ -2103,7 +2175,7 @@ function startSpaceView(){
   $('tetris-grid').classList.add('letters');
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) gridCellEls[r][c].textContent = String.fromCharCode(65 + r * 5 + c);
   spDraw($('space-cv-2').getContext('2d'), spFresh());
-  $('space-section-2').classList.add('visible');
+  $('space-section-2').classList.add('visible'); SFX.reveal();
   setTimeout(() => window.scrollTo({top:0, behavior:'smooth'}), 600);
 }
 // Player 2 side: controls + live sync of the tetris grid
@@ -2129,14 +2201,14 @@ function startLevel5(){
     startMazeSpin();
   }
   resetBoard();                 // fresh grid to build the path on (also syncs to Player 1)
-  $('controls-section').classList.add('visible');
+  $('controls-section').classList.add('visible'); SFX.reveal();
   setTimeout(() => $('controls-section').scrollIntoView({behavior:'smooth', block:'center'}), 600);
 }
 const inKb = {l:0,r:0,u:0}, inBt = {l:0,r:0,u:0};
 let inSent = {l:0,r:0,u:0};
 function syncInput(){
   const e = {};
-  for(const k of ['l','r','u']){ e[k] = (inKb[k] || inBt[k]) ? 1 : 0; $('pbtn-' + k).classList.toggle('held', !!e[k]); }
+  for(const k of ['l','r','u']){ e[k] = (inKb[k] || inBt[k]) ? 1 : 0; if(e[k] && !inSent[k]) SFX.ctl(k); $('pbtn-' + k).classList.toggle('held', !!e[k]); }
   if(e.l !== inSent.l || e.r !== inSent.r || e.u !== inSent.u){ inSent = e; send('input', e); }
 }
 function btnHold(k){ inBt[k] = 1; syncInput(); }
