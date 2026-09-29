@@ -162,7 +162,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 @property --spa{syntax:'<angle>'; inherits:false; initial-value:0deg;}
 @keyframes spaSpin{ to{--spa:360deg;} }
 @keyframes spaPulse{ 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.6);} }
-#sp-fx-out{position:fixed; z-index:40; pointer-events:none; opacity:0; transition:opacity 1.2s ease; border-radius:12px; box-shadow:0 0 26px 6px rgba(255,144,71,.55), 0 0 70px 16px rgba(255,90,40,.28); animation:spaPulse 1.6s ease-in-out infinite;}
+#sp-fx-out{position:absolute; clip-path:inset(0 -100px 0 -100px); z-index:40; pointer-events:none; opacity:0; transition:opacity 1.2s ease; border-radius:12px; box-shadow:0 0 26px 6px rgba(255,144,71,.55), 0 0 70px 16px rgba(255,90,40,.28); animation:spaPulse 1.6s ease-in-out infinite;}
 #sp-fx-out::before{content:''; position:absolute; inset:-5px; border-radius:17px; padding:5px; background:conic-gradient(from var(--spa), rgba(255,144,71,0), #FF9047, #ffe066, #FF9047, rgba(255,144,71,0) 60%); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation:spaSpin 3s linear infinite;}
 #sp-fx-in{position:fixed; inset:0; z-index:40; pointer-events:none; opacity:0; transition:opacity 1.2s ease; box-shadow:inset 0 0 70px 8px rgba(255,45,70,.6), inset 0 0 180px 30px rgba(255,45,70,.28); animation:spaPulse 1.1s ease-in-out infinite;}
 #sp-fx-in::before{content:''; position:absolute; inset:0; padding:5px; background:conic-gradient(from var(--spa), rgba(255,45,70,0), #ff2d46, #ffb3bd, #ff2d46, rgba(255,45,70,0) 60%); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation:spaSpin 2s linear infinite;}
@@ -525,11 +525,22 @@ const SFX = (() => {
       noise(.35, {type:'lowpass', f:1400, to:100, vol:.22, at:.18, a:.005});
       noise(.5, {type:'lowpass', f:900, to:80, vol:.2, at:.4, a:.01});
       noise(.9, {type:'highpass', f:5000, to:1500, vol:.04, at:.25, a:.15}); },
+    dramatic(){ if(!can('dr', 150)) return;
+      noise(.06, {type:'highpass', f:1500, vol:.3, a:.001});
+      noise(1.1, {type:'lowpass', f:2600, to:120, vol:.27, a:.004});
+      tone(110, .9, {type:'sine', vol:.32, to:28, a:.004});
+      tone(70, 1, {type:'sawtooth', vol:.113, lp:260, to:30, a:.01});
+      noise(.7, {f:1800, to:300, q:5, vol:.12, a:.01});
+      tone(520, .5, {type:'sawtooth', vol:.07, lp:1500, to:60, a:.01, at:.03});
+      tone(340, .45, {type:'square', vol:.05, lp:900, to:45, a:.01, at:.05});
+      noise(.35, {type:'lowpass', f:1400, to:100, vol:.22, at:.18, a:.005});
+      noise(.5, {type:'lowpass', f:900, to:80, vol:.2, at:.4, a:.01});
+      noise(.9, {type:'highpass', f:5000, to:1500, vol:.04, at:.25, a:.15}); },
     shipIn(){ if(!can('si', 150)) return; tone(200, .4, {to:900, vol:.15}); noise(.3, {f:600, to:3000, q:2, vol:.06}); },
     bossHit(){ if(!can('bh', 60)) return; tone(420, .06, {type:'square', vol:.06, to:250, lp:1500}); },
     bossIn(){ if(!can('bi', 300)) return; noise(1.2, {type:'lowpass', f:200, to:500, vol:.3, a:.4}); tone(60, 1.5, {type:'sawtooth', vol:.15, lp:200, to:110}); },
     bossRoar(){ if(!can('br', 300)) return; noise(1.2, {f:400, to:150, q:1.5, vol:.3}); tone(90, 1.2, {type:'sawtooth', vol:.25, lp:500, to:55}); tone(93, 1.2, {type:'sawtooth', vol:.2, lp:500, to:57}); },
-    bossDie(){ if(!can('bd', 300)) return; for(let i = 0; i < 6; i++) noise(.4, {type:'lowpass', f:2500, to:100, vol:.3, at:i * .15}); tone(200, 1.4, {to:30, type:'sawtooth', vol:.25, lp:1000}); },
+    bossDie(){ S.dramatic(); },
     letter(i){ if(!can('letter', 60)) return; tone(280 + (i % 3) * 30, .04, {type:'square', vol:.06, lp:1500}); },
     // ----- finale -----
     crash(){ if(!can('crash', 300)) return; noise(1.5, {type:'lowpass', f:1200, to:100, vol:.35, a:.02}); tone(70, 1.5, {type:'sawtooth', vol:.25, lp:300, to:35}); for(let i = 0; i < 6; i++) noise(.25, {type:'lowpass', f:900, to:150, vol:.2, at:.3 + i * .25}); },
@@ -1854,7 +1865,7 @@ let spPrev = null;
 // Both players see the same space game, so sounds are triggered from what's drawn (state changes), identically on both screens
 function spSfx(s){
   const P = s.pud, pr = spPrev, b = s.bubble;
-  const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
+  const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, ef: s.edge && s.edge.t < 5 ? Math.floor((s.edge.t * (6 + 14 * s.edge.t / 5) + 3 * Math.PI / 2) / (2 * Math.PI)) : -1, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
   spPrev = cur;
   if(!pr) return;
   const dead = cur.dy || pr.dy;
@@ -1870,7 +1881,7 @@ function spSfx(s){
   if(cur.fl > pr.fl) SFX.flashWarn(s.flashes[s.flashes.length - 1].c);
   else for(const f of cur.fp){ if(f.n < 1) continue; const q = pr.fp.find(x => x.c === f.c); if(q && q.n >= 0 && f.n > q.n) SFX.flashWarn(f.c); }
   if(cur.fh > pr.fh){ const f = s.flashes.find(f => f.t >= 2); if(f) SFX.flashHit(f.c); }
-  if(cur.edge && !pr.edge) SFX.edgeWarn();
+  if(cur.ef > pr.ef && cur.ef > 0) SFX.edgeWarn();
   if(cur.eh && !pr.eh) SFX.spikeOut();
   if(cur.tet && cur.tet !== pr.tet) SFX.tetWarn();
   if(cur.td && !pr.td) SFX.tetOk();
@@ -1889,7 +1900,7 @@ function spBossFx(g, s){
   if(!spFxOut){ spFxOut = document.createElement('div'); spFxOut.id = 'sp-fx-out'; spFxIn = document.createElement('div'); spFxIn.id = 'sp-fx-in'; document.body.appendChild(spFxOut); document.body.appendChild(spFxIn); }
   const P = s.pud, alive = !!(s.boss && P && P.dead < 0 && !s.dying && !s.leaving && !finStarted), ph = alive ? spPhase(P) : 0;
   spFxOut.classList.toggle('on', ph >= 1); spFxIn.classList.toggle('on', ph >= 2);
-  if(s.boss){ const r = g.canvas.getBoundingClientRect(); spFxOut.style.left = r.left + 'px'; spFxOut.style.top = r.top + 'px'; spFxOut.style.width = r.width + 'px'; spFxOut.style.height = r.height + 'px'; }
+  if(s.boss){ const r = g.canvas.getBoundingClientRect(); spFxOut.style.left = (r.left + window.scrollX) + 'px'; spFxOut.style.top = (r.top + window.scrollY) + 'px'; spFxOut.style.width = r.width + 'px'; spFxOut.style.height = r.height + 'px'; }
 }
 function spDraw(g, s){
   const W = SP_W, H = SP_H, dy = s.dying, sc = dy ? Math.max(0, 1 - dy.t / .8) : 1;
@@ -2142,7 +2153,7 @@ function finVanish(){
   ], {duration:1700, easing:'linear', fill:'both'}).onfinish = () => b.remove();
   setTimeout(() => {
     const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
-    SFX.shatter(); flash.animate([{opacity:0}, {opacity:.7, offset:.15}, {opacity:0}], {duration:800, easing:'ease-out'}).onfinish = () => flash.remove();
+    SFX.dramatic(); flash.animate([{opacity:0}, {opacity:.7, offset:.15}, {opacity:0}], {duration:800, easing:'ease-out'}).onfinish = () => flash.remove();
     for(let i = 0; i < 16; i++){
       const s = document.createElement('div'); s.className = 'fin-shard'; document.body.appendChild(s);
       const an = i / 16 * Math.PI * 2 + Math.random() * .3, d = 120 + Math.random() * 160;
