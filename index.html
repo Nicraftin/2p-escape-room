@@ -183,6 +183,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #fin-return{position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:60; padding:14px 32px; border-radius:14px; border:none; background:#6b7280; color:#fff; font-size:1.1rem; font-weight:600; cursor:pointer; opacity:0; transition:opacity 1.2s ease;}
 #fin-return.on{opacity:1;}
 .fin-shard{position:fixed; left:0; top:0; width:10px; height:10px; border-radius:3px; background:var(--danger); z-index:65; pointer-events:none;}
+#audio-tgls{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:calc(10px + env(safe-area-inset-right,0px)); z-index:45; display:flex; gap:8px;}
+.tgl{width:40px; height:40px; padding:0; border-radius:50%; border:none; background:rgba(0,0,0,.35); color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; touch-action:manipulation; user-select:none; -webkit-user-select:none;}
+.tgl.off{opacity:.55;}
+.tgl .slash{display:none;}
+.tgl.off .slash{display:inline;}
 </style>
 </head>
 <body>
@@ -263,6 +268,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   <div id="puzzle3-section" class="reveal"><div class="reveal-inner"><div class="maze-stage"><div class="maze" id="maze"></div></div></div></div>
 </div>
 
+<div id="audio-tgls">
+  <button id="music-btn" class="tgl" type="button" tabindex="-1" aria-label="Toggle music" aria-pressed="true" onclick="toggleMusic(); this.blur()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button>
+  <button id="sfx-btn" class="tgl" type="button" tabindex="-1" aria-label="Toggle sound effects" aria-pressed="true" onclick="toggleSfx(); this.blur()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><line class="slash" x1="3" y1="3" x2="21" y2="21"/></svg></button>
+</div>
 <div id="game-timer">00:00.000</div>
 
 <div id="dc-overlay">
@@ -353,6 +362,7 @@ function makeCode(){ return Array.from({length:4}, ()=>ALPHA[Math.floor(Math.ran
 // ---------- SFX engine (WebAudio, fully synthesized: no audio files) ----------
 // Unlocks itself on the first tap/click/key, skips silently while a state is being restored, rate-limits & caps voices.
 let dragPrevKey = null;
+let sfxOn = true, musicOn = true;
 const SFX = (() => {
   let ctx = null, master = null, nbuf = null, live = 0, rollN = null, creakN = null;
   const last = {};
@@ -373,7 +383,7 @@ const SFX = (() => {
     return ctx;
   }
   function can(key, gap){
-    if(restoring) return false;
+    if(restoring || !sfxOn) return false;
     const c = ensure(); if(!c || c.state !== 'running') return false;
     if(gap){ const n = performance.now(); if(last[key] && n - last[key] < gap) return false; last[key] = n; }
     return live < 48;
@@ -455,6 +465,7 @@ const SFX = (() => {
     if(t && !(t.id === 'ready-btn' && myRole && ready[3 - myRole])) S.ui();
   }, true);
   const S = {
+    mute(){ if(!ctx) return; const t = ctx.currentTime; if(rollN) rollN.g.gain.setTargetAtTime(0, t, .02); if(creakN) creakN.g.gain.setTargetAtTime(0, t, .02); },
     ui(){ if(!can('ui', 40)) return; tone(700, .06, {type:'triangle', vol:.18}); tone(1050, .05, {at:.03, vol:.12}); },
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
     count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
@@ -554,6 +565,53 @@ const SFX = (() => {
   };
   return S;
 })();
+
+// ---------- Music (mus1-mus5.wav next to this file; a missing file just plays nothing) ----------
+const Music = (() => {
+  const FADE_MS = 1500, LOOPS = {4:true, 5:true};
+  let cur = 0, audio = null, fading = null, token = 0, over = false, pend = 0;
+  function begin(n){
+    let a = null;
+    try{
+      a = new Audio('mus' + n + '.wav'); a.loop = !!LOOPS[n]; a.muted = !musicOn;
+      a.addEventListener('error', () => { if(audio === a) audio = null; });
+    }catch(e){ return; }
+    audio = a;
+    try{ const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){}
+  }
+  function quiet(cb){
+    if(fading){ fading.cbs.push(cb); return; }
+    const a = audio; audio = null;
+    if(a && !a.paused && !a.ended){
+      const f = fading = {a, cbs:[cb]}, v0 = a.volume, t0 = performance.now();
+      const iv = setInterval(() => {
+        const k = Math.min(1, (performance.now() - t0) / FADE_MS);
+        a.volume = v0 * (1 - k);
+        if(k >= 1){ clearInterval(iv); try{ a.pause(); }catch(e){} fading = null; f.cbs.forEach(fn => fn()); }
+      }, 30);
+    }else{
+      if(a){ try{ a.pause(); }catch(e){} }
+      cb();
+    }
+  }
+  ['pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, () => {
+    const a = audio;
+    if(a && a.paused && !a.ended){ try{ const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){} }
+  }, {capture:true, passive:true}));
+  return {
+    go(n){
+      if(restoring){ pend = n; return; }
+      if(n === cur || (n === 5 && over)) return;
+      cur = n; const t = ++token;
+      quiet(() => { if(t === token) begin(n); });
+    },
+    end(){ if(over) return; over = true; cur = 0; pend = 0; token++; quiet(() => {}); },
+    flush(){ if(pend && !over){ const n = pend; pend = 0; this.go(n); } },
+    toggle(){ musicOn = !musicOn; if(audio) audio.muted = !musicOn; if(fading) fading.a.muted = !musicOn; return musicOn; }
+  };
+})();
+function toggleMusic(){ const on = Music.toggle(); $('music-btn').classList.toggle('off', !on); $('music-btn').setAttribute('aria-pressed', on); }
+function toggleSfx(){ sfxOn = !sfxOn; if(!sfxOn) SFX.mute(); $('sfx-btn').classList.toggle('off', !sfxOn); $('sfx-btn').setAttribute('aria-pressed', sfxOn); }
 
 function startHost(){
   myRole = 1;
@@ -715,7 +773,7 @@ function applySync(p){
     if(myRole === 2 && p.press){ if(mzLevel === 4) setBallColor(p.press); if(!pieceOnLight) lightUp(p.press); }
     if(myRole === 1) setShelfBlocked(!!p.blocked);
     lastPress = p.press || null;
-  } finally { restoring = false; }
+  } finally { restoring = false; Music.flush(); }
   if(myRole === 2 && platMode) sendBoard();
 }
 function restoreStep(t){
@@ -727,7 +785,7 @@ function restoreStep(t){
 function pfInstantLevel2(){
   if(!pfStarted) startPlatformer();
   if(pfLevel !== 1) return;
-  pfSetLevel(2); p1Stage = 6;
+  pfSetLevel(2); p1Stage = 6; Music.go(3);
   $('plat').style.height = (pfH * pfT + pfFloorH) + 'px';
   pfBuildScene();
 }
@@ -803,7 +861,7 @@ function startTimer(){
   tick();
 }
 function startGame(){
-  startTimer();
+  startTimer(); Music.go(1);
   if(myRole === 1){ renderPillars(); renderShelf(); show('screen-game1'); }
   else{ show('screen-game2'); }
 }
@@ -867,7 +925,7 @@ let holdDir = 0;
 function rotHold(d){ SFX.rotBtn(d); holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; SFX.rotUp(); send('rotate', {dir: 0}); } }
 function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); }
-function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); }
+function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); Music.go(2); }
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
   if(broadcast) send('win', {}); if(myRole === 1) SFX.solve();
@@ -1284,7 +1342,7 @@ function startLevel3(){
 function startLevel4(){
   if(mzLevel === 4) return;
   if(!mzStarted) startLevel3();
-  mzLevel = 4; SFX.spikes();
+  mzLevel = 4; SFX.spikes(); Music.go(2);
   const m = $('maze'), rot = {N:0, E:90, S:180, W:270};
   SPIKES.forEach(([r,c,side,col]) => {
     spikeList.push({rect: spikeRect(r,c,side), color: col});
@@ -1413,7 +1471,7 @@ function buildPlatformer(){
 // Level 1 -> 2: fade the level out, grow the arena by 5 tiles, fade the taller level in
 function pfNextLevel(){
   if(pfLevel !== 1 || pfTrans || !pfStarted) return;
-  pfTrans = true; pfActive = false; pfLoopId++; SFX.grow();
+  pfTrans = true; pfActive = false; pfLoopId++; SFX.grow(); Music.go(3);
   $('skip-btn').style.display = 'none';
   send('level6', {});
   const el = $('plat'), inner = $('plat-inner');
@@ -1870,6 +1928,7 @@ function spSfx(s){
   const P = s.pud, pr = spPrev, b = s.bubble;
   const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, ef: s.edge && s.edge.t < 5 ? Math.floor((s.edge.t * (6 + 14 * s.edge.t / 5) + 3 * Math.PI / 2) / (2 * Math.PI)) : -1, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
   spPrev = cur;
+  if(s.boss){ if(cur.pd) Music.end(); else Music.go(5); }
   if(!pr) return;
   const dead = cur.dy || pr.dy;
   if(cur.dy && !pr.dy) SFX.shipDie();
@@ -2075,7 +2134,7 @@ function spBossStart(){
 let finStarted = false, finN = 200, finDone = false, timerStop = null, finBtn = null, finLast = 0, finVx = 1, finVy = 1, finX = 0, finY = 0, finMoving = false;
 function startFinale(){
   if(finStarted) return;
-  finStarted = true; finN = 200; spActive = false; spLoopId++; SFX.crash(); SFX.finaleSpam();
+  finStarted = true; finN = 200; spActive = false; spLoopId++; Music.end(); SFX.crash(); SFX.finaleSpam();
   if(spFxOut){ spFxOut.classList.remove('on'); spFxIn.classList.remove('on'); }
   const scr = document.querySelector('.screen.active');
   const flash = document.createElement('div'); flash.id = 'fin-flash'; document.body.appendChild(flash);
@@ -2175,14 +2234,14 @@ function finWin(ms){
   t.style.fontSize = 'min(5.2rem,15vw)'; t.classList.add('done');
   const m = document.createElement('div'); m.id = 'fin-msg'; m.textContent = 'Congratulations, you win!'; document.body.appendChild(m);
   setTimeout(() => { const GAP = 64, tr = $('game-timer').getBoundingClientRect(); m.style.bottom = 'auto'; m.style.top = (tr.top - GAP - m.offsetHeight) + 'px'; m.classList.add('on'); }, 2600);
-  const cr = document.createElement('div'); cr.id = 'fin-credit'; cr.innerHTML = 'A game made by Nicraftin in 2 days<br>Thank you for playing!<br><br><span style="font-size:1.4em; color:#fff; line-height:1;">&#9829;</span>'; document.body.appendChild(cr);
+  const cr = document.createElement('div'); cr.id = 'fin-credit'; cr.innerHTML = 'A game made by Nicraftin<br>Thank you for playing!<br><br><span style="font-size:1.4em; color:#fff; line-height:1;">&#9829;</span>'; document.body.appendChild(cr);
   setTimeout(() => { cr.style.top = ($('game-timer').getBoundingClientRect().bottom + 64) + 'px'; cr.classList.add('on'); }, 2600);
   const rb = document.createElement('button'); rb.id = 'fin-return'; rb.textContent = 'Return'; rb.onclick = () => location.reload(); document.body.appendChild(rb);
   setTimeout(() => rb.classList.add('on'), 2600);
 }
 function startSpace(){
   if(spStarted) return;
-  spStarted = true; p1Stage = 7;
+  spStarted = true; p1Stage = 7; Music.go(4);
   pfActive = false; pfLoopId++;
   setShelfBlocked(false);
   sp = spFresh();
@@ -2215,7 +2274,7 @@ function spClearBoard(){
   setTimeout(() => { resetBoard(); boardLocked = false; }, 700);
 }
 function startSpaceView(){
-  spMode = true;
+  spMode = true; Music.go(4);
   $('tetris-grid').classList.add('letters');
   for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++) gridCellEls[r][c].textContent = String.fromCharCode(65 + r * 5 + c);
   spDraw($('space-cv-2').getContext('2d'), spFresh());
@@ -2235,7 +2294,7 @@ function startMazeSpin(){
   };
   requestAnimationFrame(f);
 }
-function startLevel6(){ if(platMode) resetBoard(); } // fresh grid for the taller platformer (also syncs to Player 1)
+function startLevel6(){ Music.go(3); if(platMode) resetBoard(); } // fresh grid for the taller platformer (also syncs to Player 1)
 function startLevel5(){
   if(platMode) return;
   platMode = true;
