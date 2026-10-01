@@ -119,9 +119,13 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #dc-overlay{position:fixed; inset:0; z-index:1000; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:#0b0d14; color:#fff; text-align:center; padding:24px;}
 #dc-title{font-size:1.7rem; font-weight:700;}
 #game-timer{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:50; display:none; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1.2rem; font-weight:700; color:var(--text); background:rgba(0,0,0,.35); padding:4px 12px; border-radius:8px; pointer-events:none;}
-#audio-btns{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:10px; z-index:60; display:flex; gap:6px;}
-.aud-btn{background:var(--panel2); color:var(--text); border:1px solid rgba(128,128,150,.35); border-radius:10px; padding:6px 10px; font-size:.8rem; cursor:pointer; font-family:inherit;}
-.aud-btn.off{opacity:.5; text-decoration:line-through;}
+#audio-btns{position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:10px; z-index:60; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+.aud-row{display:flex; align-items:center; gap:8px;}
+.aud-btn{background:var(--panel2); color:var(--text); border:1px solid rgba(128,128,150,.35); border-radius:50%; width:38px; height:38px; padding:0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:inherit; flex:none;}
+.aud-btn svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.aud-btn svg .fill{fill:currentColor; stroke:none;}
+.aud-slider{display:none; width:110px; margin:0; cursor:pointer; accent-color:currentColor; color:var(--text);}
+.aud-row.open .aud-slider{display:block;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
 .maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
@@ -269,8 +273,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <div id="game-timer">00:00.000</div>
 
 <div id="audio-btns">
-  <button class="aud-btn" id="mus-btn" onclick="toggleMusic()">🎵 Music</button>
-  <button class="aud-btn" id="sfx-btn" onclick="toggleSfx()">🔊 SFX</button>
+  <div class="aud-row" id="mus-row">
+    <input type="range" class="aud-slider" id="mus-slider" min="0" max="100" value="25" aria-label="Music volume" oninput="setMusicVol(this.value)">
+    <button class="aud-btn" id="mus-btn" onclick="toggleSlider('mus-row')" aria-label="Music volume"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle class="fill" cx="6.5" cy="18" r="3"/><circle class="fill" cx="17.5" cy="16" r="3"/></svg></button>
+  </div>
+  <div class="aud-row" id="sfx-row">
+    <input type="range" class="aud-slider" id="sfx-slider" min="0" max="100" value="50" aria-label="SFX volume" oninput="setSfxVol(this.value)">
+    <button class="aud-btn" id="sfx-btn" onclick="toggleSlider('sfx-row')" aria-label="SFX volume"><svg viewBox="0 0 24 24"><path class="fill" d="M3 9.5h4l5-4v13l-5-4H3z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+  </div>
 </div>
 
 <div id="dc-overlay">
@@ -360,7 +370,7 @@ function makeCode(){ return Array.from({length:4}, ()=>ALPHA[Math.floor(Math.ran
 
 // ---------- SFX engine (WebAudio, fully synthesized: no audio files) ----------
 // Unlocks itself on the first tap/click/key, skips silently while a state is being restored, rate-limits & caps voices.
-let dragPrevKey = null, sfxOn = true;
+let dragPrevKey = null, sfxOn = true, sfxVol = .5;
 const SFX = (() => {
   let ctx = null, master = null, nbuf = null, live = 0, rollN = null, creakN = null;
   const last = {};
@@ -372,7 +382,7 @@ const SFX = (() => {
       try{ ctx = new AC(); }catch(e){ ctx = null; return null; }
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = .003; comp.release.value = .2;
-      master = ctx.createGain(); master.gain.value = sfxOn ? .8 : 0;
+      master = ctx.createGain(); master.gain.value = sfxVol * 1.6;
       master.connect(comp); comp.connect(ctx.destination);
       nbuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const d = nbuf.getChannelData(0); for(let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -463,7 +473,7 @@ const SFX = (() => {
     if(t && !(t.id === 'ready-btn' && myRole && ready[3 - myRole])) S.ui();
   }, true);
   const S = {
-    setOn(v){ sfxOn = v; if(master) master.gain.value = v ? .8 : 0; },
+    setVol(v){ sfxVol = v; sfxOn = v > 0; if(master) master.gain.value = v * 1.6; },
     ui(){ if(!can('ui', 40)) return; tone(700, .06, {type:'triangle', vol:.18}); tone(1050, .05, {at:.03, vol:.12}); },
     connect(){ if(!can('connect', 300)) return; bell(659, 0, .2); bell(988, .12, .2); },
     count(i){ if(!can()) return; if(i < 3){ tone(520, .14, {type:'triangle', vol:.28}); } else { tone(1040, .14, {type:'triangle', vol:.28}); } },
@@ -567,7 +577,7 @@ const SFX = (() => {
 // ---------- Music (mus1-mus5.mp3 next to this file; missing files just play nothing) ----------
 const MUS = (() => {
   const FILES = {1:'mus1.mp3', 2:'mus2.mp3', 3:'mus3.mp3', 4:'mus4.mp3', 5:'mus5.mp3'}, LOOP = {4:1, 5:1};
-  let cur = null, want = 0, on = true, tok = 0, pend = 0;
+  let cur = null, want = 0, vol = .25, tok = 0, pend = 0;
   function fade(a, ms, done){
     const v0 = a.volume, t0 = performance.now();
     const id = setInterval(() => {
@@ -578,9 +588,9 @@ const MUS = (() => {
   }
   function start(n){
     let a = null;
-    try{ a = new Audio(FILES[n]); a.loop = !!LOOP[n]; a.preload = 'auto'; a.onerror = () => {}; }catch(e){ return; }
+    try{ a = new Audio(FILES[n]); a.loop = !!LOOP[n]; a.preload = 'auto'; a.onerror = () => {}; a.volume = vol; }catch(e){ return; }
     cur = a;
-    if(on){ try{ const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){} }
+    try{ const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){}
   }
   return {
     play(n){
@@ -595,22 +605,15 @@ const MUS = (() => {
       if(old && !old.paused && !old.ended) fade(old, 2500);
     },
     flush(){ if(pend){ const n = pend; pend = 0; this.play(n); } },
-    setOn(v){
-      on = v;
-      if(!cur) return;
-      if(!v) cur.pause();
-      else if(!cur.ended){ try{ const p = cur.play(); if(p && p.catch) p.catch(() => {}); }catch(e){} }
+    setVol(v){
+      vol = v;
+      if(cur){ try{ cur.volume = v; }catch(e){} }
     }
   };
 })();
-function toggleMusic(){
-  const b = $('mus-btn'), v = b.classList.contains('off');
-  b.classList.toggle('off', !v); MUS.setOn(v);
-}
-function toggleSfx(){
-  const b = $('sfx-btn'), v = b.classList.contains('off');
-  b.classList.toggle('off', !v); SFX.setOn(v);
-}
+function toggleSlider(id){ $(id).classList.toggle('open'); }
+function setMusicVol(v){ MUS.setVol(v / 100); }
+function setSfxVol(v){ SFX.setVol(v / 100); }
 
 function startHost(){
   myRole = 1;
