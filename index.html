@@ -124,8 +124,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 .aud-btn{background:var(--panel2); color:var(--text); border:1px solid rgba(128,128,150,.35); border-radius:50%; width:38px; height:38px; padding:0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:inherit; flex:none;}
 .aud-btn svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
 .aud-btn svg .fill{fill:currentColor; stroke:none;}
-.aud-slider{display:none; width:110px; margin:0; cursor:pointer; accent-color:currentColor; color:var(--text);}
-.aud-row.open .aud-slider{display:block;}
+.aud-slider{width:0; min-width:0; margin:0 -8px 0 0; opacity:0; visibility:hidden; pointer-events:none; cursor:pointer; accent-color:currentColor; color:var(--text); transition:width .25s ease, margin .25s ease, opacity .25s ease, visibility 0s linear .25s;}
+.aud-row.open .aud-slider{width:110px; margin:0; opacity:1; visibility:visible; pointer-events:auto; transition:width .25s ease, margin .25s ease, opacity .25s ease, visibility 0s;}
+.aud-btn .mute-x{display:none;}
+.aud-btn.muted .mute-x{display:block;}
+.aud-btn.muted .wave{display:none;}
 #skip-btn{margin-top:20px; opacity:.6; font-size:.85rem; padding:10px 18px;}
 .light-row{display:flex; align-items:center; justify-content:center;}
 .maze-stage{width:380px; height:380px; max-width:100%; margin:0 auto; display:flex; align-items:center; justify-content:center;}
@@ -275,11 +278,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 <div id="audio-btns">
   <div class="aud-row" id="mus-row">
     <input type="range" class="aud-slider" id="mus-slider" min="0" max="100" value="25" aria-label="Music volume" oninput="setMusicVol(this.value)">
-    <button class="aud-btn" id="mus-btn" onclick="toggleSlider('mus-row')" aria-label="Music volume"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle class="fill" cx="6.5" cy="18" r="3"/><circle class="fill" cx="17.5" cy="16" r="3"/></svg></button>
+    <button class="aud-btn" id="mus-btn" onclick="toggleSlider('mus-row')" aria-label="Music volume"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle class="fill" cx="6.5" cy="18" r="3"/><circle class="fill" cx="17.5" cy="16" r="3"/><path class="mute-x" d="M3 3l18 18"/></svg></button>
   </div>
   <div class="aud-row" id="sfx-row">
     <input type="range" class="aud-slider" id="sfx-slider" min="0" max="100" value="50" aria-label="SFX volume" oninput="setSfxVol(this.value)">
-    <button class="aud-btn" id="sfx-btn" onclick="toggleSlider('sfx-row')" aria-label="SFX volume"><svg viewBox="0 0 24 24"><path class="fill" d="M3 9.5h4l5-4v13l-5-4H3z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+    <button class="aud-btn" id="sfx-btn" onclick="toggleSlider('sfx-row')" aria-label="SFX volume"><svg viewBox="0 0 24 24"><path class="fill" d="M3 9.5h4l5-4v13l-5-4H3z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6"/><path class="wave" d="M18.5 6.5a8 8 0 0 1 0 11"/><path class="mute-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
   </div>
 </div>
 
@@ -577,7 +580,7 @@ const SFX = (() => {
 // ---------- Music (mus1-mus5.mp3 next to this file; missing files just play nothing) ----------
 const MUS = (() => {
   const FILES = {1:'mus1.mp3', 2:'mus2.mp3', 3:'mus3.mp3', 4:'mus4.mp3', 5:'mus5.mp3'}, LOOP = {4:1, 5:1};
-  let cur = null, want = 0, vol = .25, tok = 0, pend = 0;
+  let cur = null, want = 0, vol = .25, tok = 0, pend = 0, endT = 0;
   function fade(a, ms, done){
     const v0 = a.volume, t0 = performance.now();
     const id = setInterval(() => {
@@ -589,7 +592,7 @@ const MUS = (() => {
   function start(n){
     let a = null;
     try{ a = new Audio(FILES[n]); a.loop = !!LOOP[n]; a.preload = 'auto'; a.onerror = () => {}; a.volume = vol; }catch(e){ return; }
-    cur = a;
+    cur = a; a.addEventListener('ended', () => { if(cur === a) endT = Date.now(); });
     try{ const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){}
   }
   return {
@@ -601,9 +604,10 @@ const MUS = (() => {
       if(old && !old.paused && !old.ended) fade(old, 1500, go); else go();
     },
     fadeOut(){
-      want = 0; tok++; const old = cur; cur = null;
+      want = 0; tok++; if(restoring) pend = 0; const old = cur; cur = null;
       if(old && !old.paused && !old.ended) fade(old, 2500);
     },
+    replay(){ if(!restoring && cur && cur.ended && want >= 1 && want <= 3 && endT && Date.now() - endT >= 300000){ endT = 0; start(want); } },
     flush(){ if(pend){ const n = pend; pend = 0; this.play(n); } },
     setVol(v){
       vol = v;
@@ -611,9 +615,10 @@ const MUS = (() => {
     }
   };
 })();
+setInterval(() => MUS.replay(), 5000);
 function toggleSlider(id){ $(id).classList.toggle('open'); }
-function setMusicVol(v){ MUS.setVol(v / 100); }
-function setSfxVol(v){ SFX.setVol(v / 100); }
+function setMusicVol(v){ MUS.setVol(v / 100); $('mus-btn').classList.toggle('muted', +v === 0); }
+function setSfxVol(v){ SFX.setVol(v / 100); $('sfx-btn').classList.toggle('muted', +v === 0); }
 
 function startHost(){
   myRole = 1;
@@ -926,7 +931,7 @@ function skipPuzzle1(){
 let holdDir = 0;
 function rotHold(d){ SFX.rotBtn(d); holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; SFX.rotUp(); send('rotate', {dir: 0}); } }
-function showRotateButtons(){ p1Stage = 3; $('rotate-shelf').classList.add('visible'); }
+function showRotateButtons(){ p1Stage = 3; MUS.fadeOut(); $('rotate-shelf').classList.add('visible'); }
 function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); MUS.play(2); }
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
@@ -1334,7 +1339,7 @@ function spikeHit(){
 }
 function startLevel3(){
   if(mzStarted) return;
-  mzStarted = true;
+  mzStarted = true; MUS.fadeOut();
   buildMaze();
   $('puzzle3-section').classList.add('visible');
   setTimeout(() => {
@@ -1556,6 +1561,7 @@ function pfWin(){
 }
 function startPlatformer(){
   if(pfStarted) return;
+  MUS.fadeOut();
   pfStarted = true; p1Stage = 5;
   buildPlatformer();
   $('platformer-section').classList.add('visible');
@@ -2299,6 +2305,7 @@ function startMazeSpin(){
 function startLevel6(){ MUS.play(3); if(platMode) resetBoard(); } // fresh grid for the taller platformer (also syncs to Player 1)
 function startLevel5(){
   if(platMode) return;
+  MUS.fadeOut();
   platMode = true;
   if(mz && ballEl){                // the ball is gone, but the maze keeps rotating with Player 1's buttons
     ballEl.style.display = 'none';
