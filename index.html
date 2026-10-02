@@ -251,6 +251,7 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
   </div></div>
   <div id="platformer-section" class="reveal"><div class="reveal-inner"><div id="plat"></div></div></div>
   <button id="skip-btn" class="big-btn" onclick="skipPuzzle1()">Skip to next puzzle (test)</button>
+  <div id="p2-copy-section" class="reveal"><div class="reveal-inner"><div class="tetris-grid letters" id="p2-copy-grid" style="pointer-events:none; user-select:none; -webkit-user-select:none;"></div></div></div>
 </div>
 
 <div id="screen-game2" class="screen">
@@ -857,7 +858,7 @@ function handleData(msg){
   else if(msg.type === 'spword'){ if(myRole === 1) spWord(msg.payload); }
   else if(msg.type === 'spshape'){ if(myRole === 1 && sp && sp.tet && !sp.tet.done){ sp.tet.done = true; sp.tet.d = 0; } }
   else if(msg.type === 'spdeath'){ if(myRole === 2) spClearBoard(); }
-  else if(msg.type === 'board'){ if(myRole === 1) pfSetBoard(msg.payload.board); }
+  else if(msg.type === 'board'){ if(myRole === 1){ p2CopyRender(msg.payload.board); pfSetBoard(msg.payload.board); } }
   else if(msg.type === 'input'){ if(myRole === 1) pfIn = msg.payload; }
   else if(msg.type === 'finalwin'){ show('screen-win'); }
   else if(msg.type === 'finale'){ startFinale(); }
@@ -1614,7 +1615,7 @@ function startPlatformer(){
 const SP_W = 480, SP_H = 480, SP_R = 12, SP_SPEED = 200, SP_ROT = 90, SP_BSPEED = 460, SP_CD = .25, SP_DT = 1/120, SP_LW = 36;
 let spShotN = 0;
 let sp = null, spStarted = false, spActive = false, spLoopId = 0, spLast = 0, spAcc = 0;
-const SP_WORDS = new Set(`abhor abort adept adios adopt aegis agios aglow befit begin begot below bijou blowy ceils chimp chino chips chops clops deist deity demos dinos dirty empty films filmy first fisty flops forty ghost gimps gipsy glory horst horsy`.split(' '));
+const SP_WORDS = new Set(`abhor ablow abort acers adept adios adopt aegis agios agist aglow ahint amort befit begin begot below benty bijou birsy blowy borty ceils centu chiks chimo chimp chino chins chips chirt chiru chivy chops choux clops copsy defis deils deist deity delos demos dempt deoxy dimps dinos dirty dorty druxy elops empty films filmy filos first fisty flops flors flory forty ghost gilpy gimps gimpy gipsy glops glory glost gorsy horst horsy knops mopsy`.split(' '));
 let spView = null, spMode = false, spWon = false;
 function spRng(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const spEase = p => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
@@ -1704,7 +1705,37 @@ const SP_MSG = [
   "Just one more death and we hit the big 20",
   "Let's go! 20 deaths! I'm so not proud of you!",
   "Ngl, I'm kinda tired of counting too, I get you Sans",
-  "Let's just say... 22 deaths"
+  "Let's just say... 22 deaths",
+  "23 deaths",
+  "24 deaths",
+  "25 deaths",
+  "26 deaths",
+  "27 deaths",
+  "28 deaths",
+  "29 deaths",
+  "30 deaths",
+  "31 deaths",
+  "32 deaths",
+  "33 deaths",
+  "34 deaths",
+  "35 deaths",
+  "36 deaths",
+  "37 deaths",
+  "38 deaths",
+  "39 deaths",
+  "40 deaths",
+  "41 deaths",
+  "42 deaths",
+  "43 deaths",
+  "44 deaths",
+  "45 deaths",
+  "46 deaths",
+  "47 deaths",
+  "48 deaths",
+  "49 deaths",
+  "50 deaths",
+  "51 deaths",
+  "52 deaths"
 ];
 function spTitle(id, s){
   const fin = document.querySelector('#space-section-' + id + ' .sp-finale'), ti = $('sp-title-' + id), hp = $('sp-hp-' + id), msg = $('sp-msg-' + id);
@@ -1805,7 +1836,7 @@ function spShapeOk(name){
   return false;
 }
 function spOnView(v){ const t = v.tet; if(t && t.id !== spTetSeen){ spTetSeen = t.id; if(spMode && !boardLocked) resetBoard(); } }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 300, max: 300, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 300, max: 300, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1, rs: 1, rdir: 1, rtrav: 0, rx: 180 + Math.random() * 2320}; }
 // Boss hit shape: the sprite's visible body is short on top and round-ish on the bottom, so the top is much tighter than the old 111px circle
 function spPudHit(p, x, y, pad){
   const dx = x - p.x, dy = y - p.y, rx = 110 + pad, ry = (dy < 0 ? 62 : 88) + pad;
@@ -1824,7 +1855,10 @@ function spPudStep(p, dt){
     if(d <= st){ p.x = tx; p.y = ty; p.on = true; } else { p.x += dx / d * st; p.y += dy / d * st; }
     return;
   }
-  p.ang += (0.35 + frac * 1.15) * dt;
+  p.rs += Math.sign(p.rdir - p.rs) * Math.min(Math.abs(p.rdir - p.rs), dt); // gradual: speed eases through 0 into the opposite direction
+  const da = (0.35 + frac * 1.15) * p.rs * dt; p.ang += da;
+  p.rtrav += Math.abs(da) * 180 / Math.PI;
+  if(p.rtrav >= p.rx){ p.rdir = -p.rdir; p.rtrav = 0; p.rx = 180 + Math.random() * 2320; }
   p.x = cx + Math.cos(p.ang) * rad;
   p.y = cy + Math.sin(p.ang) * rad;
 }
@@ -2287,9 +2321,30 @@ function finWin(ms){
   const rb = document.createElement('button'); rb.id = 'fin-return'; rb.textContent = 'Return'; rb.onclick = () => location.reload(); document.body.appendChild(rb);
   setTimeout(() => rb.classList.add('on'), 2600);
 }
+let p2CopyCells = [];
+function p2CopyBuild(){
+  const grid = $('p2-copy-grid'); if(!grid || p2CopyCells.length) return;
+  grid.style.gridTemplateColumns = `repeat(${gridSize}, ${CELL}px)`;
+  grid.style.gridTemplateRows = `repeat(${gridSize}, ${CELL}px)`;
+  grid.style.width = gridPixelSize(gridSize) + 'px';
+  grid.style.height = gridPixelSize(gridSize) + 'px';
+  for(let r = 0; r < gridSize; r++) for(let c = 0; c < gridSize; c++){
+    const cell = document.createElement('div'); cell.className = 'grid-cell';
+    cell.textContent = String.fromCharCode(65 + r * 5 + c);
+    grid.appendChild(cell); p2CopyCells.push(cell);
+  }
+}
+function p2CopyRender(board){
+  p2CopyBuild(); if(!board) return;
+  board.forEach((row, r) => row.forEach((v, c) => {
+    const cell = p2CopyCells[r * gridSize + c]; if(!cell) return;
+    cell.style.background = v || ''; cell.classList.toggle('filled', !!v);
+  }));
+}
 function startSpace(){
   if(spStarted) return;
   spStarted = true; p1Stage = 7; MUS.play(4);
+  p2CopyRender(pfBoard); $('p2-copy-section').classList.add('visible');
   pfActive = false; pfLoopId++;
   setShelfBlocked(false);
   sp = spFresh();
