@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>The Nicraftin Lair</title>
-<link rel="icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 :root{
@@ -278,11 +278,11 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 
 <div id="audio-btns">
   <div class="aud-row" id="mus-row">
-    <input type="range" class="aud-slider" id="mus-slider" min="0" max="100" value="35" aria-label="Music volume" oninput="setMusicVol(this.value)">
+    <input type="range" class="aud-slider" id="mus-slider" min="0" max="100" value="30" aria-label="Music volume" oninput="setMusicVol(this.value)">
     <button class="aud-btn" id="mus-btn" onclick="toggleSlider('mus-row')" aria-label="Music volume"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle class="fill" cx="6.5" cy="18" r="3"/><circle class="fill" cx="17.5" cy="16" r="3"/><path class="mute-x" d="M3 3l18 18"/></svg></button>
   </div>
   <div class="aud-row" id="sfx-row">
-    <input type="range" class="aud-slider" id="sfx-slider" min="0" max="100" value="50" aria-label="SFX volume" oninput="setSfxVol(this.value)">
+    <input type="range" class="aud-slider" id="sfx-slider" min="0" max="100" value="70" aria-label="SFX volume" oninput="setSfxVol(this.value)">
     <button class="aud-btn" id="sfx-btn" onclick="toggleSlider('sfx-row')" aria-label="SFX volume"><svg viewBox="0 0 24 24"><path class="fill" d="M3 9.5h4l5-4v13l-5-4H3z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6"/><path class="wave" d="M18.5 6.5a8 8 0 0 1 0 11"/><path class="mute-x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
   </div>
 </div>
@@ -374,7 +374,7 @@ function makeCode(){ return Array.from({length:4}, ()=>ALPHA[Math.floor(Math.ran
 
 // ---------- SFX engine (WebAudio, fully synthesized: no audio files) ----------
 // Unlocks itself on the first tap/click/key, skips silently while a state is being restored, rate-limits & caps voices.
-let dragPrevKey = null, sfxOn = true, sfxVol = .5;
+let dragPrevKey = null, sfxOn = true, sfxVol = .7;
 const SFX = (() => {
   let ctx = null, master = null, nbuf = null, live = 0, rollN = null, creakN = null;
   const last = {};
@@ -581,7 +581,40 @@ const SFX = (() => {
 // ---------- Music (mus1-mus5.mp3 next to this file; missing files just play nothing) ----------
 const MUS = (() => {
   const FILES = {1:'mus1.mp3', 2:'mus2.mp3', 3:'mus3.mp3', 4:'mus4.mp3', 5:'mus5.mp3'}, LOOP = {4:1, 5:1};
-  let cur = null, want = 0, vol = .35, tok = 0, pend = 0, endT = 0;
+  let cur = null, want = 0, vol = .3, tok = 0, pend = 0, endT = 0, played4 = false, ac = null;
+  const bufs = {};
+  function ctx(){ if(!ac){ const C = window.AudioContext || window.webkitAudioContext; ac = new C(); } if(ac.state === 'suspended') ac.resume(); return ac; }
+  function loadBuf(n){
+    if(!bufs[n]) bufs[n] = fetch(FILES[n]).then(r => { if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b => new Promise((res, rej) => ctx().decodeAudioData(b, res, rej)));
+    return bufs[n];
+  }
+  function loopTrack(n, onplay){
+    const w = {paused:false, ended:false, dead:false, _v:vol, src:null, g:null, fb:null,
+      get volume(){ return this._v; },
+      set volume(x){ this._v = x; if(this.g) this.g.gain.value = x; if(this.fb) this.fb.volume = x; },
+      pause(){ this.paused = true; this.dead = true; try{ if(this.src) this.src.stop(); }catch(e){} try{ if(this.fb) this.fb.pause(); }catch(e){} }};
+    loadBuf(n).then(buf => {
+      if(w.dead) return;
+      const c = ctx(); w.src = c.createBufferSource(); w.src.buffer = buf; w.src.loop = true;
+      w.g = c.createGain(); w.g.gain.value = w._v; w.src.connect(w.g); w.g.connect(c.destination); w.src.start(0);
+      if(onplay) onplay();
+    }).catch(() => {
+      if(w.dead) return;
+      try{ const a = new Audio(FILES[n]); a.loop = true; a.onerror = () => {}; a.volume = w._v; w.fb = a; const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){}
+      if(onplay) onplay();
+    });
+    return w;
+  }
+  try{ loadBuf(4).catch(() => {}); loadBuf(5).catch(() => {}); }catch(e){}
+  function fadeIn(a, ms){
+    const t0 = performance.now();
+    const id = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      if(cur !== a){ clearInterval(id); return; }
+      try{ a.volume = vol * k; }catch(e){}
+      if(k >= 1) clearInterval(id);
+    }, 50);
+  }
   function fade(a, ms, done){
     const v0 = a.volume, t0 = performance.now();
     const id = setInterval(() => {
@@ -591,6 +624,12 @@ const MUS = (() => {
     }, 50);
   }
   function start(n){
+    if(LOOP[n]){
+      const first = n === 4 && !played4; if(first) played4 = true;
+      const a = loopTrack(n, first ? () => { if(cur === a) fadeIn(a, 3000); } : null);
+      if(first) a.volume = 0;
+      cur = a; return;
+    }
     let a = null;
     try{ a = new Audio(FILES[n]); a.loop = !!LOOP[n]; a.preload = 'auto'; a.onerror = () => {}; a.volume = vol; }catch(e){ return; }
     cur = a; a.addEventListener('ended', () => { if(cur === a) endT = Date.now(); });
