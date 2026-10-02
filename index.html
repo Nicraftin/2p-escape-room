@@ -112,6 +112,12 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 @keyframes pfRespawn{ 0%{background:#ff5c72; opacity:0;} 20%{opacity:1;} 40%{opacity:.2;} 60%{opacity:1;} 80%{opacity:.4;} 100%{background:#ffe066; opacity:1;} }
 #plat .pplayer{left:0; top:0; background:#ffe066; border-radius:4px; box-shadow:none; will-change:transform;}
 #plat-blocks{position:absolute; left:0; top:0; width:100%; height:100%;}
+#plat .pbook{pointer-events:none;}
+#plat .pkeyhint{left:0; top:0; border:2px solid #f2f2f7; background:rgba(20,22,40,.92); border-radius:6px; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s ease; pointer-events:none; will-change:transform;}
+#plat .pkeyhint.show{opacity:1;}
+#pf-paper{position:fixed; left:50%; top:50%; z-index:800; width:min(92vw, calc(88vh * 900 / 560), 1000px); aspect-ratio:900 / 560; background:linear-gradient(135deg,#f6efdc,#eadfc2); border-radius:3px; box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 0 60px rgba(120,90,40,.18); opacity:0; transform:translate(-50%,-50%) translateY(22px); transition:opacity .5s ease, transform .5s ease; pointer-events:none;}
+#pf-paper.show{opacity:1; transform:translate(-50%,-50%) translateY(0);}
+#pf-paper svg{width:100%; height:100%; display:block;}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
@@ -248,6 +254,10 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
       <div class="mini-grid" id="color-preview"></div>
       <div class="mini-grid" id="submit-preview-1"></div>
     </div></div></div>
+    <div id="tetris3-row" class="reveal"><div class="reveal-inner"><div class="info-row">
+      <div class="mini-grid" id="tetris3-preview"></div>
+      <div class="mini-grid" id="submit-preview-2"></div>
+    </div></div></div>
   </div></div>
   <div id="platformer-section" class="reveal"><div class="reveal-inner"><div id="plat"></div></div></div>
   <button id="skip-btn" class="big-btn" onclick="skipPuzzle1()">Skip to next puzzle (test)</button>
@@ -343,7 +353,14 @@ const COLOR_PATTERN = [
   [ 'red',   'white', 'white', 'white', 'blue'  ],
   [ 'red',   'red',   'white', 'blue',  'blue'  ]
 ];
-const STAGE_PATTERNS = [HEART_PATTERN, COLOR_PATTERN];
+const TETRIS3_PATTERN = [
+  [ null, null,   null,   null,   null ],
+  [ null, null,   'blue', null,   null ],
+  [ null, 'blue', 'blue', 'blue', null ],
+  [ null, null,   null,   null,   null ],
+  [ null, null,   null,   null,   null ]
+];
+const STAGE_PATTERNS = [HEART_PATTERN, COLOR_PATTERN, TETRIS3_PATTERN];
 function colorCategory(hex){
   if(hex === '#ffffff') return 'white';
   for(const k in C) if(C[k] === hex) return k;
@@ -364,7 +381,7 @@ let peer = null, conn = null, myRole = null;
 let ready = {1:false, 2:false};
 let started = false;
 let restoring = false, milestones = [], lastPress = null;
-const MILESTONE = {win:1, skiptetris1:1, stage2:1, level3:1, level4:1, level5:1, level6:1, level7:1, finale:1};
+const MILESTONE = {win:1, skiptetris1:1, stage2:1, level3:1, level4:1, tetris3:1, level5:1, level6:1, level7:1, finale:1};
 function noteMilestone(t){ if(!milestones.includes(t)) milestones.push(t); }
 let puzzle = null;
 let progress = [];
@@ -522,6 +539,8 @@ const SFX = (() => {
     squash(){ if(!can('squash', 100)) return; tone(300, .25, {to:60, type:'sawtooth', vol:.15, lp:1200}); noise(.15, {type:'lowpass', f:2000, vol:.15}); },
     door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
     grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
+    paperOpen(){ if(!can('pao', 120)) return; noise(.28, {f:2200, to:5200, q:.8, vol:.12, a:.04}); noise(.12, {type:'highpass', f:4000, vol:.07, a:.01, at:.1}); noise(.18, {f:3000, to:2000, q:1.2, vol:.07, at:.2}); },
+    paperClose(){ if(!can('pac', 120)) return; noise(.3, {f:4800, to:1800, q:.8, vol:.11, a:.03}); noise(.1, {type:'highpass', f:4500, vol:.06, a:.01, at:.18}); noise(.16, {f:2400, to:1500, q:1.2, vol:.06, at:.22}); },
     // ----- Player 2's control buttons look different -> different pitch per button -----
     ctl(k){ if(!can('ctl', 30)) return; noise(.06, {type:'lowpass', f:900, vol:.14, a:.012}); tone(200, .1, {type:'sine', vol:.16, a:.015, to:170}); },
     // ----- space minigame (both players see the same thing) -----
@@ -564,6 +583,7 @@ const SFX = (() => {
     bossIn(){ if(!can('bi', 300)) return; noise(1.2, {type:'lowpass', f:200, to:500, vol:.3, a:.4}); tone(60, 1.5, {type:'sawtooth', vol:.15, lp:200, to:110}); },
     bossRoar(){ if(!can('br', 300)) return; noise(1.2, {f:400, to:150, q:1.5, vol:.3}); tone(90, 1.2, {type:'sawtooth', vol:.25, lp:500, to:55}); tone(93, 1.2, {type:'sawtooth', vol:.2, lp:500, to:57}); },
     bossDie(){ S.dramatic(); },
+    sparkle(){ if(!can('spk', 200)) return; [2349, 3136, 3951, 4699].forEach((f, i) => tone(f, .22, {at: i * .05, vol: .03, a: .004})); tone(6272, .3, {at: .14, vol: .015, a: .005}); },
     finaleSpam(){
       const F = [() => S.zap(), () => S.boom(), () => S.shatter(), () => S.spikes(), () => S.spikeOut(), () => S.laserFire(), () => S.squash(), () => S.door(), () => S.rewind(), () => S.wrong(), () => S.deny(), () => S.bossRoar(), () => S.flashHit(), () => S.edgeWarn(), () => S.tetWarn(), () => S.sink(), () => S.grow(), () => S.pop(), () => S.bump(300), () => S.place(), () => S.land(), () => S.laserWarn(), () => S.spawnStatic(), () => S.spawnMover(), () => S.shipDie(), () => S.dramatic()];
       for(let i = 0; i < 45; i++) setTimeout(() => F[Math.floor(Math.random() * F.length)](), 100 + i * 55 + Math.random() * 40);
@@ -851,6 +871,7 @@ function handleData(msg){
   else if(msg.type === 'rotglow'){ if(myRole === 1) applyRotGlow(msg.payload.on); }
   else if(msg.type === 'level3'){ if(myRole === 1) showRotateButtons(); else startLevel3(); }
   else if(msg.type === 'level4'){ if(myRole === 1) showLevel4Controls(); else startLevel4(); }
+  else if(msg.type === 'tetris3'){ if(myRole === 1) showTetris3(); else startTetris3(); }
   else if(msg.type === 'level5'){ if(myRole === 1) startPlatformer(); else startLevel5(); }
   else if(msg.type === 'level6'){ if(myRole === 2) startLevel6(); }
   else if(msg.type === 'level7'){ if(myRole === 2) startSpaceView(); }
@@ -963,7 +984,8 @@ function skipPuzzle1(){
   else if(p1Stage === 1){ p1Stage = 2; send('skiptetris1', {}); }
   else if(p1Stage === 2){ send('level3', {}); showRotateButtons(); }
   else if(p1Stage === 3){ send('level4', {}); showLevel4Controls(); }
-  else if(p1Stage === 4){ send('level5', {}); startPlatformer(); }
+  else if(p1Stage === 4){ send('tetris3', {}); showTetris3(); }
+  else if(p1Stage === 4.5){ send('level5', {}); startPlatformer(); }
   else if(p1Stage === 5){ pfNextLevel(); }
   else if(p1Stage === 6){ send('level7', {}); startSpace(); }
   else if(p1Stage === 7){ spBossStart(); }
@@ -974,6 +996,11 @@ function rotHold(d){ SFX.rotBtn(d); holdDir = d; send('rotate', {dir: d}); }
 function rotRelease(d){ if(holdDir === d){ holdDir = 0; SFX.rotUp(); send('rotate', {dir: 0}); } }
 function showRotateButtons(){ p1Stage = 3; MUS.fadeOut(); $('rotate-shelf').classList.add('visible'); }
 function showLevel4Controls(){ p1Stage = 4; setShelfBlocked(false); MUS.play(2); }
+function showTetris3(){
+  p1Stage = 4.5; MUS.fadeOut();
+  $('tetris3-row').classList.add('visible');
+  setTimeout(() => $('tetris3-row').scrollIntoView({behavior:'smooth', block:'center'}), 700);
+}
 function completePuzzle1(broadcast){
   if(myRole === 1 && p1Stage < 1) p1Stage = 1;
   if(broadcast) send('win', {}); if(myRole === 1) SFX.solve();
@@ -1006,7 +1033,7 @@ function buildColorPreview(){
   }));
 }
 function buildSubmitPreview(){
-  [0, 1].forEach(n => {
+  [0, 1, 2].forEach(n => {
     const el = $('submit-preview-' + n);
     el.style.gridTemplateColumns = `repeat(5, 20px)`;
     el.style.gridTemplateRows = `repeat(5, 20px)`;
@@ -1017,12 +1044,25 @@ function buildSubmitPreview(){
     }
   });
 }
-let colorSolved = false;
+let colorSolved = false, tet3Solved = false;
 function renderSubmission(board, stage, correct){
   if(myRole !== 1) return;
-  if(stage === 1){ if(colorSolved) return; if(correct) colorSolved = true; } SFX.received();
+  if(stage === 1){ if(colorSolved) return; if(correct) colorSolved = true; }
+  else if(stage === 2){ if(tet3Solved) return; if(correct) tet3Solved = true; }
+  SFX.received();
   const cells = $('submit-preview-' + stage).children;
   board.forEach((row, r) => row.forEach((v, c) => { cells[r * 5 + c].style.background = v || ''; }));
+}
+function buildTetris3Preview(){
+  const el = $('tetris3-preview');
+  el.style.gridTemplateColumns = `repeat(5, 20px)`;
+  el.style.gridTemplateRows = `repeat(5, 20px)`;
+  TETRIS3_PATTERN.forEach(row => row.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'mini-cell';
+    d.style.background = patternHex(v);
+    el.appendChild(d);
+  }));
 }
 function buildHeartPreview(){
   const el = $('heart-preview');
@@ -1150,7 +1190,7 @@ function isOverLight(x, y){
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 function canColorAtLight(){
-  return stageIndex === 1 && $('light').classList.contains('needs-color') && !!currentLightColor;
+  return stageIndex >= 1 && $('light').classList.contains('needs-color') && !!currentLightColor;
 }
 function onDragMove(e){
   positionGhost(e.clientX, e.clientY);
@@ -1276,7 +1316,7 @@ function shakeGrid(){ SFX.wrong();
   setTimeout(() => grid.classList.remove('shake'), 600);
 }
 function advanceToColorStage(){
-  if(stageIndex === 1) return; SFX.ready();
+  if(stageIndex >= 1) return; SFX.ready();
   stageIndex = 1;
   resetBoard();
   $('light').classList.add('needs-color');
@@ -1301,9 +1341,12 @@ function submitPattern(){
     if(stage === 0){
       advanceToColorStage();
       send('stage2', {});
-    } else {
+    } else if(stage === 1){
       send('level3', {});
       startLevel3();
+    } else {
+      send('level5', {});
+      startLevel5();
     }
     boardLocked = false;
   }, 700);
@@ -1404,6 +1447,7 @@ function startLevel4(){
   mazeReset();
 }
 function startMazeLoop(){
+  if(stageIndex === 2 && !platMode) return;
   const id = ++mzLoopId;
   mzActive = true; mzLast = performance.now(); mzAcc = 0; mz.dir = mzDir;
   const f = now => {
@@ -1451,7 +1495,7 @@ function mazeWin(){ SFX.roll(0); SFX.creak(0); SFX.sink();
   ballEl.style.transform = 'scale(.1)';
   setTimeout(() => {
     if(mzLevel === 3){ send('level4', {}); startLevel4(); }
-    else { send('level5', {}); startLevel5(); }
+    else { send('tetris3', {}); startTetris3(); }
   }, 800);
 }
 
@@ -1465,6 +1509,39 @@ let pfLevel = 1, pfH = 8, pfLedge = [0,2,5,6], pfExit = [1.5,1,3.5,2], pfTrans =
 function pfSetLevel(n){ pfLevel = n; pfH = n === 1 ? 8 : 13; pfLedge = [0, 2, 5, pfH - 2]; pfExit = [1.5, 1, 3.5, 2]; }
 let pf = null, pfIn = {l:0,r:0,u:0}, pfBoard = null, pfSolid = [pfLedge];
 let pfStarted = false, pfActive = false, pfT = 50, pfEl = null, pfLoopId = 0, pfLast = 0, pfAcc = 0;
+let pfPaperEl = null, pfPaperOpen = false, pfUPrev = false, pfUHold = false, pfHint = null, pfHintS = 0;
+const PF_BOOK_X = .7; // book centre (in tiles) on the floor of level 2
+function pfNearBook(){
+  if(pfLevel !== 2 || !pf) return false;
+  return Math.abs(pf.x + PF_S / 2 - PF_BOOK_X) < 1 && pf.y + PF_S > pfH - 1;
+}
+function pfPaperBuild(){
+  const ink = '#2c2a3a', font = "'Segoe Print','Bradley Hand','Comic Sans MS',cursive";
+  const key = (x, y, w, h, rot, inner) => `<g transform="rotate(${rot} ${x + w/2} ${y + h/2})"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="rgba(255,255,255,.45)" stroke="${ink}" stroke-width="4"/><rect x="${x+9}" y="${y+7}" width="${w-18}" height="${h-24}" rx="8" fill="none" stroke="${ink}" stroke-width="2" opacity=".35"/>${inner}</g>`;
+  const letter = (x, y, w, h, ch) => `<text x="${x + w/2}" y="${y + (h-10)/2}" text-anchor="middle" dominant-baseline="central" font-family="${font}" font-size="48" font-weight="700" fill="${ink}">${ch}</text>`;
+  const arrow = (x, y, w, h, deg) => `<g transform="translate(${x + w/2} ${y + (h-10)/2}) rotate(${deg})" fill="none" stroke="${ink}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 22V-22M-16 -8L0 -24L16 -8"/></g>`;
+  let g = '';
+  const K = 100, P = 114;
+  const wasd = [['W', 174, 90, -1.5], ['A', 60, 204, 1.2], ['S', 174, 204, -.8], ['D', 288, 204, 1.6]];
+  wasd.forEach(([ch, x, y, r]) => { g += key(x, y, K, K, r, letter(x, y, K, K, ch)); });
+  const arrs = [[0, 626, 90, 1], [270, 512, 204, -1.4], [180, 626, 204, .8], [90, 740, 204, -1.1]];
+  arrs.forEach(([d, x, y, r]) => { g += key(x, y, K, K, r, arrow(x, y, K, K, d)); });
+  const ex = 330, ey = 370, ew = 240, eh = 100, ax = ex + ew - 50, ay = ey + 26;
+  g += key(ex, ey, ew, eh, -.9,
+    `<text x="${ex + 100}" y="${ey + (eh-10)/2}" text-anchor="middle" dominant-baseline="central" font-family="${font}" font-size="38" font-weight="700" fill="${ink}">Enter</text>` +
+    `<path d="M${ax} ${ay}v24h-34M${ax-24} ${ay+14}L${ax-34} ${ay+24}L${ax-24} ${ay+34}" fill="none" stroke="${ink}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`);
+  const el = document.createElement('div'); el.id = 'pf-paper';
+  el.innerHTML = `<svg viewBox="0 0 900 560" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
+  document.body.appendChild(el); pfPaperEl = el;
+}
+function pfSetPaper(open){
+  if(open === pfPaperOpen) return;
+  pfPaperOpen = open;
+  if(!pfPaperEl) pfPaperBuild();
+  void pfPaperEl.offsetWidth;
+  pfPaperEl.classList.toggle('show', open);
+  if(open) SFX.paperOpen(); else SFX.paperClose();
+}
 function pfOverlaps(x, y, r){ return x < r[2]-PF_EPS && x+PF_S > r[0]+PF_EPS && y < r[3]-PF_EPS && y+PF_S > r[1]+PF_EPS; }
 function pfMk(cls, x, y, w, h, parent){
   const d = document.createElement('div'); d.className = cls;
@@ -1495,7 +1572,7 @@ function pfRespawn(){
 }
 // (Re)draws everything inside the arena for the current pfLevel
 function pfBuildScene(){
-  const T = pfT, inner = $('plat-inner'); inner.innerHTML = '';
+  const T = pfT, inner = $('plat-inner'); inner.innerHTML = ''; pfHint = null;
   for(let g = 0; g < pfLevel; g++) for(let r = 0; r < 5; r++) for(let c = 0; c < 5; c++) pfMk('pc', (5+c)*T+2, (PF_OY+g*5+r)*T+2, T-4, T-4);
   const bl = document.createElement('div'); bl.id = 'plat-blocks'; inner.appendChild(bl);
   pfMk('pledge', pfLedge[0]*T, pfLedge[1]*T, (pfLedge[2]-pfLedge[0])*T, (pfLedge[3]-pfLedge[1])*T);
@@ -1503,8 +1580,18 @@ function pfBuildScene(){
   ex.innerHTML = '<div class="pdoor"></div>';
   pfMk('pledge pfloor', 0, pfH*T, PF_N*T, pfFloorH);
   pfMk('pceil', 0, 0, PF_N*T, T*.6);
+  if(pfLevel === 2){ // a book dropped in the bottom left corner
+    const bw = T * 1.05, bh = bw * 20 / 64;
+    const bk = pfMk('pbook', .18 * T, pfH * T - bh, bw, bh);
+    bk.innerHTML = '<svg viewBox="0 0 64 20" width="100%" height="100%"><rect x="0" y="2" width="6" height="17" rx="2.5" fill="#7a2634"/><rect x="3" y="14" width="60" height="5" rx="1.5" fill="#8b2f3c"/><rect x="7" y="7" width="55" height="7.5" fill="#f3ead2"/><path d="M9 9.5H60M9 12H58" stroke="#cfc3a2" stroke-width=".7"/><rect x="2" y="2" width="59" height="5.5" rx="1.5" fill="#a63a4a"/><rect x="13" y="3.7" width="30" height="1.5" fill="#e8c46a" opacity=".85"/><rect x="56" y="14" width="2.4" height="5.5" fill="#e8c46a"/></svg>';
+  }
   pfEl = pfMk('pplayer', 0, 0, PF_S*T, PF_S*T);
   pfEl.innerHTML = '<svg viewBox="0 0 24 24" width="100%" height="100%"><circle cx="8.5" cy="9" r="1.9" fill="#000"/><circle cx="15.5" cy="9" r="1.9" fill="#000"/><path d="M6.5 14.5Q12 20.5 17.5 14.5" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  if(pfLevel === 2){ // "press up" prompt shown above the cube while it is next to the book
+    pfHintS = Math.round(T * .62);
+    pfHint = pfMk('pkeyhint', 0, 0, pfHintS, pfHintS);
+    pfHint.innerHTML = '<svg viewBox="0 0 24 24" width="60%" height="60%"><path d="M5 15l7-7 7 7" fill="none" stroke="#f2f2f7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
   pf = {x:2.1, y:pfH - PF_S, vx:0, vy:0, grounded:true};
   pfComputeSolid(); pfDrawBlocks(); pfDraw();
 }
@@ -1535,12 +1622,20 @@ function pfNextLevel(){
   }, 1450);
   setTimeout(() => { pfTrans = false; pfLoop(); }, 2050);
 }
-function pfDraw(){ pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`; }
+function pfDraw(){
+  pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`;
+  if(pfHint){
+    pfHint.style.transform = `translate(${pf.x * pfT + PF_S * pfT / 2 - pfHintS / 2}px,${pf.y * pfT - pfHintS - pfT * .15}px)`;
+    pfHint.classList.toggle('show', pfNearBook() && !pfPaperOpen);
+  }
+}
 let pfStepT = 0;
 function pfStep(){
   const s = pf, wasG = s.grounded;
   s.vx = (pfIn.r - pfIn.l) * PF_SPEED;
-  if(pfIn.u && s.grounded){ s.vy = -PF_JUMP; SFX.jump(); }
+  if(pfIn.u && !pfUPrev){ if(pfPaperOpen){ pfSetPaper(false); pfUHold = true; } else if(pfNearBook()){ pfSetPaper(true); pfUHold = true; } }
+  pfUPrev = !!pfIn.u; if(!pfIn.u) pfUHold = false;
+  if(pfIn.u && s.grounded && !pfUHold){ s.vy = -PF_JUMP; SFX.jump(); }
   s.vy = Math.min(s.vy + PF_G * PF_DT, 25);
   s.x = Math.max(0, Math.min(PF_N - PF_S, s.x + s.vx * PF_DT));
   for(const r of pfSolid) if(pfOverlaps(s.x, s.y, r)){
@@ -1593,7 +1688,7 @@ function pfEnterExit(done){
   setTimeout(done, 1000);
 }
 function pfWin(){
-  pfActive = false; pfDraw();
+  pfActive = false; pfDraw(); pfSetPaper(false);
   pfEnterExit(() => {
     if(pfLevel === 1){ pfNextLevel(); return; }
     send('level7', {});
@@ -1836,7 +1931,7 @@ function spShapeOk(name){
   return false;
 }
 function spOnView(v){ const t = v.tet; if(t && t.id !== spTetSeen){ spTetSeen = t.id; if(spMode && !boardLocked) resetBoard(); } }
-function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 300, max: 300, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1, rs: 1, rdir: 1, rtrav: 0, rx: 180 + Math.random() * 2320}; }
+function spPud(){ return {x: SP_W / 2, y: -60, ty: 70, on: false, hp: 300, max: 300, age: 0, flash: 0, dead: -1, ang: -Math.PI / 2, flee: null, ph: 0, anger: -1, rs: 1, rdir: 1, rtrav: 0, rx: 180 + Math.random() * 2320, wf: -1, wfd: false}; }
 // Boss hit shape: the sprite's visible body is short on top and round-ish on the bottom, so the top is much tighter than the old 111px circle
 function spPudHit(p, x, y, pad){
   const dx = x - p.x, dy = y - p.y, rx = 110 + pad, ry = (dy < 0 ? 62 : 88) + pad;
@@ -1844,6 +1939,7 @@ function spPudHit(p, x, y, pad){
 }
 function spPudStep(p, dt){
   if(p && p.anger >= 0){ p.anger += dt; if(p.anger > 2.6) p.anger = -1; }
+  if(p && p.wf >= 0){ p.wf += dt; if(p.wf > .6) p.wf = -1; }
   if(!p) return;
   if(p.flee){ p.flee.t += dt; p.x += p.flee.vx * dt; p.y += p.flee.vy * dt; p.flee.vx *= 1.05; p.flee.vy *= 1.05; return; }
   p.age += dt; if(p.flash > 0) p.flash -= dt;
@@ -1858,7 +1954,8 @@ function spPudStep(p, dt){
   p.rs += Math.sign(p.rdir - p.rs) * Math.min(Math.abs(p.rdir - p.rs), dt); // gradual: speed eases through 0 into the opposite direction
   const da = (0.35 + frac * 1.15) * p.rs * dt; p.ang += da;
   p.rtrav += Math.abs(da) * 180 / Math.PI;
-  if(p.rtrav >= p.rx){ p.rdir = -p.rdir; p.rtrav = 0; p.rx = 180 + Math.random() * 2320; }
+  if(!p.wfd && p.rx - p.rtrav <= 60){ p.wfd = true; p.wf = 0; } // 60 degrees before turning around: one yellow outline flash
+  if(p.rtrav >= p.rx){ p.rdir = -p.rdir; p.rtrav = 0; p.rx = 180 + Math.random() * 2320; p.wfd = false; }
   p.x = cx + Math.cos(p.ang) * rad;
   p.y = cy + Math.sin(p.ang) * rad;
 }
@@ -1878,6 +1975,7 @@ function spPudDraw(g, p, ship, T){
   const bg = g.createLinearGradient(-36, 0, 36, 0); bg.addColorStop(0, '#f2a93a'); bg.addColorStop(.45, '#ffe6ab'); bg.addColorStop(1, '#e7962e');
   body(); g.fillStyle = bg; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
   if(p.flash > 0){ body(); g.fillStyle = 'rgba(255,255,255,' + (p.flash / .12 * .6) + ')'; g.fill(); }
+  if(p.wf >= 0){ const wa = Math.sin(Math.PI * Math.min(1, p.wf / .6)); g.save(); body(); g.strokeStyle = 'rgba(255,224,102,' + wa + ')'; g.lineWidth = 3.5; g.shadowColor = 'rgba(255,224,102,' + wa + ')'; g.shadowBlur = 10; g.stroke(); g.restore(); }
   g.beginPath(); g.moveTo(-29.4, -11); g.quadraticCurveTo(0, -22.8, 29.4, -11); g.lineTo(31.6, 0); g.quadraticCurveTo(27, 4, 22, 0); g.lineTo(14, -1); g.quadraticCurveTo(10, 6, 6, -1); g.lineTo(-4, -2); g.quadraticCurveTo(-8, 3, -12, -2); g.lineTo(-20, -2); g.quadraticCurveTo(-25.5, 5, -31.4, 0); g.closePath();
   const ig = g.createRadialGradient(0, -4, 4, 0, -4, 40); ig.addColorStop(0, '#eb7f10'); ig.addColorStop(1, '#b8560c');
   g.fillStyle = ig; g.fill();
@@ -2009,7 +2107,7 @@ let spPrev = null;
 // Both players see the same space game, so sounds are triggered from what's drawn (state changes), identically on both screens
 function spSfx(s){
   const P = s.pud, pr = spPrev, b = s.bubble;
-  const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, ef: s.edge && s.edge.t < 5 ? Math.floor((s.edge.t * (6 + 14 * s.edge.t / 5) + 3 * Math.PI / 2) / (2 * Math.PI)) : -1, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
+  const cur = {bul: s.shots || 0, en: s.statics.length + s.movers.length, st: s.statics.length, mv: s.movers.length, ls: s.lasers.length, lf: s.lasers.filter(l => l.t >= 5).length, fl: s.flashes.length, fp: s.flashes.map(f => ({c: f.c, n: f.t < 2 ? Math.floor(f.t * 16 / (2 * Math.PI)) : -1})), fh: s.flashes.filter(f => f.t >= 2).length, edge: !!s.edge, ef: s.edge && s.edge.t < 5 ? Math.floor((s.edge.t * (6 + 14 * s.edge.t / 5) + 3 * Math.PI / 2) / (2 * Math.PI)) : -1, eh: !!(s.edge && s.edge.t >= 5), tet: s.tet ? s.tet.id : 0, td: !!(s.tet && s.tet.done), dy: !!s.dying, pud: !!P, pf: !!(P && P.flash > 0), pa: !!(P && P.anger >= 0), pw: !!(P && P.wf >= 0), pd: !!(P && P.dead >= 0), bub: !!b, bt: b ? b.t : 0};
   spPrev = cur;
   if(!pr) return;
   const dead = cur.dy || pr.dy;
@@ -2032,6 +2130,7 @@ function spSfx(s){
   if(cur.pud && !pr.pud){ SFX.bossIn(); MUS.play(5); }
   if(cur.pf && !pr.pf) SFX.bossHit();
   if(cur.pa && !pr.pa) SFX.bossRoar();
+  if(cur.pw && !pr.pw) SFX.sparkle();
   if(cur.pd && !pr.pd){ SFX.bossDie(); MUS.fadeOut(); }
   if(b && (!pr.bub || b.t < pr.bt)){
     const n = b.txt.length, ok = !!b.word;
@@ -2397,6 +2496,14 @@ function startMazeSpin(){
   };
   requestAnimationFrame(f);
 }
+function startTetris3(){
+  if(stageIndex === 2) return;
+  stageIndex = 2; MUS.fadeOut();
+  mzActive = false; mzLoopId++; SFX.roll(0); SFX.creak(0);
+  if(restoring && ballEl) ballEl.style.display = 'none';
+  boardLocked = false; resetBoard();
+  setTimeout(() => $('puzzle2-section').scrollIntoView({behavior:'smooth', block:'center'}), 700);
+}
 function startLevel6(){ MUS.play(3); if(platMode) resetBoard(); } // fresh grid for the taller platformer (also syncs to Player 1)
 function startLevel5(){
   if(platMode) return;
@@ -2446,6 +2553,7 @@ buildGrid(5);
 buildTray();
 buildHeartPreview();
 buildColorPreview();
+buildTetris3Preview();
 buildSubmitPreview();
 </script>
 </body>
