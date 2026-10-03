@@ -113,11 +113,14 @@ input.code-input{ font-size:1.4rem; letter-spacing:.3em; text-align:center; text
 #plat .pplayer{left:0; top:0; background:#ffe066; border-radius:4px; box-shadow:none; will-change:transform;}
 #plat-blocks{position:absolute; left:0; top:0; width:100%; height:100%;}
 #plat .pbook{pointer-events:none;}
+#plat .pcrack{pointer-events:none;}
+#plat .psecret{background:#0e0f1c; opacity:0; transition:opacity .8s ease; pointer-events:none;}
+#plat .psecret.show{opacity:1;}
 #plat .pkeyhint{left:0; top:0; border:2px solid #f2f2f7; background:rgba(20,22,40,.92); border-radius:6px; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s ease; pointer-events:none; will-change:transform;}
 #plat .pkeyhint.show{opacity:1;}
-#pf-paper{position:fixed; left:50%; top:50%; z-index:800; width:min(92vw, calc(88vh * 900 / 560), 1000px); aspect-ratio:900 / 560; background:linear-gradient(135deg,#f6efdc,#eadfc2); border-radius:3px; box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 0 60px rgba(120,90,40,.18); opacity:0; transform:translate(-50%,-50%) translateY(22px); transition:opacity .5s ease, transform .5s ease; pointer-events:none;}
+#pf-paper{position:fixed; left:50%; top:50%; z-index:800; width:min(92vw, calc(88vh * 900 / 560), 1000px); aspect-ratio:900 / 560; opacity:0; transform:translate(-50%,-50%) translateY(22px); transition:opacity .5s ease, transform .5s ease; pointer-events:none;}
 #pf-paper.show{opacity:1; transform:translate(-50%,-50%) translateY(0);}
-#pf-paper svg{width:100%; height:100%; display:block;}
+#pf-paper svg{width:100%; height:100%; display:block; filter:drop-shadow(0 22px 34px rgba(0,0,0,.5));}
 .mini-grid{display:grid; gap:2px; background:var(--panel2); padding:4px; border-radius:8px; margin:0 auto; width:max-content;}
 .mini-cell{width:20px; height:20px; background:var(--panel); border-radius:2px;}
 .mini-cell.filled{background:#fff;}
@@ -539,8 +542,8 @@ const SFX = (() => {
     squash(){ if(!can('squash', 100)) return; tone(300, .25, {to:60, type:'sawtooth', vol:.15, lp:1200}); noise(.15, {type:'lowpass', f:2000, vol:.15}); },
     door(){ if(!can('door', 200)) return; tone(700, .55, {to:120, type:'triangle', vol:.15}); noise(.5, {f:3000, to:300, q:2, vol:.08}); },
     grow(){ if(!can('grow', 200)) return; noise(1, {type:'lowpass', f:150, to:600, vol:.25, a:.3}); tone(80, 1, {to:200, type:'sawtooth', vol:.12, lp:400}); },
-    paperOpen(){ if(!can('pao', 120)) return; noise(.28, {f:2200, to:5200, q:.8, vol:.12, a:.04}); noise(.12, {type:'highpass', f:4000, vol:.07, a:.01, at:.1}); noise(.18, {f:3000, to:2000, q:1.2, vol:.07, at:.2}); },
-    paperClose(){ if(!can('pac', 120)) return; noise(.3, {f:4800, to:1800, q:.8, vol:.11, a:.03}); noise(.1, {type:'highpass', f:4500, vol:.06, a:.01, at:.18}); noise(.16, {f:2400, to:1500, q:1.2, vol:.06, at:.22}); },
+    paperOpen(){ if(!sfxOn) return; try{ const a = new Audio('open.mp3'); a.onerror = () => {}; a.volume = Math.min(1, sfxVol); const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){} },
+    paperClose(){ if(!sfxOn) return; try{ const a = new Audio('close.mp3'); a.onerror = () => {}; a.volume = Math.min(1, sfxVol); const p = a.play(); if(p && p.catch) p.catch(() => {}); }catch(e){} },
     // ----- Player 2's control buttons look different -> different pitch per button -----
     ctl(k){ if(!can('ctl', 30)) return; noise(.06, {type:'lowpass', f:900, vol:.14, a:.012}); tone(200, .1, {type:'sine', vol:.16, a:.015, to:170}); },
     // ----- space minigame (both players see the same thing) -----
@@ -1509,29 +1512,69 @@ let pfLevel = 1, pfH = 8, pfLedge = [0,2,5,6], pfExit = [1.5,1,3.5,2], pfTrans =
 function pfSetLevel(n){ pfLevel = n; pfH = n === 1 ? 8 : 13; pfLedge = [0, 2, 5, pfH - 2]; pfExit = [1.5, 1, 3.5, 2]; }
 let pf = null, pfIn = {l:0,r:0,u:0}, pfBoard = null, pfSolid = [pfLedge];
 let pfStarted = false, pfActive = false, pfT = 50, pfEl = null, pfLoopId = 0, pfLast = 0, pfAcc = 0;
+const PF_SECRET = [[0,2,5,3],[0,3,1,5],[4,4,5,5],[0,5,5,11]], PF_CAVITY = [[4,3,5,4],[1,3,4,5]]; // level 2 ledge pieces around the hidden entrance + room
+let pfSecretEls = [], pfSecretSeen = false;
 let pfPaperEl = null, pfPaperOpen = false, pfUPrev = false, pfUHold = false, pfHint = null, pfHintS = 0;
-const PF_BOOK_X = .7; // book centre (in tiles) on the floor of level 2
+const PF_BOOK_X = .44; // book centre (in tiles) on the floor of level 2
 function pfNearBook(){
   if(pfLevel !== 2 || !pf) return false;
   return Math.abs(pf.x + PF_S / 2 - PF_BOOK_X) < 1 && pf.y + PF_S > pfH - 1;
 }
 function pfPaperBuild(){
-  const ink = '#2c2a3a', font = "'Segoe Print','Bradley Hand','Comic Sans MS',cursive";
-  const key = (x, y, w, h, rot, inner) => `<g transform="rotate(${rot} ${x + w/2} ${y + h/2})"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="rgba(255,255,255,.45)" stroke="${ink}" stroke-width="4"/><rect x="${x+9}" y="${y+7}" width="${w-18}" height="${h-24}" rx="8" fill="none" stroke="${ink}" stroke-width="2" opacity=".35"/>${inner}</g>`;
-  const letter = (x, y, w, h, ch) => `<text x="${x + w/2}" y="${y + (h-10)/2}" text-anchor="middle" dominant-baseline="central" font-family="${font}" font-size="48" font-weight="700" fill="${ink}">${ch}</text>`;
-  const arrow = (x, y, w, h, deg) => `<g transform="translate(${x + w/2} ${y + (h-10)/2}) rotate(${deg})" fill="none" stroke="${ink}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M0 22V-22M-16 -8L0 -24L16 -8"/></g>`;
+  let sd = 7; const rnd = () => { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; };
+  const J = a => (rnd() - .5) * a, ink = '#3a3a42', font = "'Segoe Print','Bradley Hand','Comic Sans MS',cursive";
+  // irregular paper outline
+  const M = 14, W = 900, H = 560, pts = [];
+  const edge = (x0, y0, x1, y1) => {
+    const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / 28), nx = -(y1 - y0), ny = x1 - x0, nl = Math.hypot(nx, ny);
+    for(let i = 0; i < n; i++){
+      const t = i / n, j = J(7) + (rnd() < .14 ? J(13) : 0);
+      pts.push([x0 + (x1 - x0) * t + nx / nl * j, y0 + (y1 - y0) * t + ny / nl * j]);
+    }
+  };
+  edge(M + 8, M + 2, W - M - 6, M + 6); edge(W - M - 6, M + 6, W - M, H - M - 10); edge(W - M, H - M - 10, M + 12, H - M); edge(M + 12, H - M, M + 8, M + 2);
+  const outline = 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z';
+  // pencil strokes
+  const stroke = (p, w, o) => {
+    let d = `M${(p[0][0] + J(2)).toFixed(1)} ${(p[0][1] + J(2)).toFixed(1)}`;
+    for(let i = 1; i < p.length; i++){ const [x0, y0] = p[i-1], [x1, y1] = p[i]; d += ` Q${((x0 + x1) / 2 + J(3)).toFixed(1)} ${((y0 + y1) / 2 + J(3)).toFixed(1)} ${(x1 + J(2)).toFixed(1)} ${(y1 + J(2)).toFixed(1)}`; }
+    return `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity="${o}"/>`;
+  };
+  const pass = p => stroke(p, 2.8, .75) + stroke(p, 1.5, .5);
+  const box = (x, y, w, h, rot, inner) => `<g transform="rotate(${rot} ${x + w/2} ${y + h/2})">` +
+    pass([[x - 4 + J(5), y + J(4)], [x + w + 4 + J(5), y + J(4)]]) + pass([[x + w + J(4), y - 4 + J(5)], [x + w + J(4), y + h + 5]]) +
+    pass([[x + w + 5, y + h + J(4)], [x - 4, y + h + J(4)]]) + pass([[x + J(4), y + h + 4], [x + J(4), y - 5]]) + inner + '</g>';
+  const at = (cx, cy, deg, inner) => `<g transform="translate(${cx} ${cy}) rotate(${deg})">${inner}</g>`;
+  const GL = {
+    W: pass([[-20,-20],[-11,20],[0,-6],[11,20],[20,-20]]),
+    A: pass([[-18,21],[0,-23],[18,21]]) + pass([[-10,7],[10,6]]),
+    S: pass([[14,-15],[6,-22],[-6,-22],[-14,-14],[-10,-5],[0,0],[10,6],[14,15],[6,22],[-6,22],[-15,14]]),
+    D: pass([[-13,-21],[-13,21]]) + pass([[-14,-21],[6,-20],[17,-8],[17,8],[6,20],[-14,21]])
+  };
+  const arrow = () => pass([[0,22],[0,-22]]) + pass([[-16,-7],[0,-24],[16,-7]]);
   let g = '';
-  const K = 100, P = 114;
-  const wasd = [['W', 174, 90, -1.5], ['A', 60, 204, 1.2], ['S', 174, 204, -.8], ['D', 288, 204, 1.6]];
-  wasd.forEach(([ch, x, y, r]) => { g += key(x, y, K, K, r, letter(x, y, K, K, ch)); });
-  const arrs = [[0, 626, 90, 1], [270, 512, 204, -1.4], [180, 626, 204, .8], [90, 740, 204, -1.1]];
-  arrs.forEach(([d, x, y, r]) => { g += key(x, y, K, K, r, arrow(x, y, K, K, d)); });
+  const K = 100;
+  [['W', 174, 90, -1.5], ['A', 60, 204, 1.2], ['S', 174, 204, -.8], ['D', 288, 204, 1.6]].forEach(([ch, x, y, r]) => { g += box(x, y, K, K, r, at(x + K/2, y + (K-10)/2, 0, GL[ch])); });
+  [[0, 626, 90, 1], [270, 512, 204, -1.4], [180, 626, 204, .8], [90, 740, 204, -1.1]].forEach(([d, x, y, r]) => { g += box(x, y, K, K, r, at(x + K/2, y + (K-10)/2, d, arrow())); });
   const ex = 330, ey = 370, ew = 240, eh = 100, ax = ex + ew - 50, ay = ey + 26;
-  g += key(ex, ey, ew, eh, -.9,
-    `<text x="${ex + 100}" y="${ey + (eh-10)/2}" text-anchor="middle" dominant-baseline="central" font-family="${font}" font-size="38" font-weight="700" fill="${ink}">Enter</text>` +
-    `<path d="M${ax} ${ay}v24h-34M${ax-24} ${ay+14}L${ax-34} ${ay+24}L${ax-24} ${ay+34}" fill="none" stroke="${ink}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`);
+  g += box(ex, ey, ew, eh, -.9,
+    `<text x="${ex + 100}" y="${ey + (eh-10)/2}" text-anchor="middle" dominant-baseline="central" font-family="${font}" font-size="38" font-weight="700" fill="${ink}" fill-opacity=".8" stroke="${ink}" stroke-width=".6">Enter</text>` +
+    pass([[ax, ay], [ax, ay + 24], [ax - 34, ay + 24]]) + pass([[ax - 24, ay + 14], [ax - 34, ay + 24], [ax - 24, ay + 34]]));
+  const defs = `<defs>
+    <linearGradient id="pf-pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6efdc"/><stop offset="1" stop-color="#eadfc2"/></linearGradient>
+    <clipPath id="pf-pc"><path d="${outline}"/></clipPath>
+    <filter id="pf-fib" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".035 .6" numOctaves="3" seed="4"/><feColorMatrix type="matrix" values="0 0 0 0 .45  0 0 0 0 .33  0 0 0 0 .15  0 0 0 .55 -.12"/></filter>
+    <filter id="pf-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="pf-pen" filterUnits="userSpaceOnUse" x="0" y="0" width="900" height="560"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" result="d"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.2 2.1" result="g"/><feComposite in="d" in2="g" operator="in"/></filter>
+  </defs>`;
+  const paper = `<path d="${outline}" fill="url(#pf-pg)"/>` +
+    `<g clip-path="url(#pf-pc)"><rect width="${W}" height="${H}" filter="url(#pf-fib)"/>` +
+    `<path d="${outline}" fill="none" stroke="rgba(120,90,40,.3)" stroke-width="34" filter="url(#pf-blur)"/>` +
+    `<path d="M452 10L449 282L455 552" fill="none" stroke="rgba(90,65,30,.12)" stroke-width="2"/><path d="M455 10L452 282L458 552" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/>` +
+    `<path d="M10 281L450 285L890 279" fill="none" stroke="rgba(90,65,30,.1)" stroke-width="2"/><path d="M10 284L450 288L890 282" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2"/></g>` +
+    `<path d="${outline}" fill="none" stroke="rgba(120,90,40,.28)" stroke-width="1.5"/>`;
   const el = document.createElement('div'); el.id = 'pf-paper';
-  el.innerHTML = `<svg viewBox="0 0 900 560" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
+  el.innerHTML = `<svg viewBox="0 0 900 560" preserveAspectRatio="xMidYMid meet">${defs}${paper}<g filter="url(#pf-pen)">${g}</g></svg>`;
   document.body.appendChild(el); pfPaperEl = el;
 }
 function pfSetPaper(open){
@@ -1549,7 +1592,7 @@ function pfMk(cls, x, y, w, h, parent){
   (parent || $('plat-inner')).appendChild(d); return d;
 }
 function pfComputeSolid(){
-  pfSolid = [pfLedge];
+  pfSolid = pfLevel === 2 ? PF_SECRET.slice() : [pfLedge];
   (pfBoard || []).forEach((row, r) => row.forEach((v, c) => { if(v) for(let g = 0; g < pfLevel; g++) pfSolid.push([5+c, PF_OY+g*5+r, 6+c, PF_OY+g*5+r+1]); }));
 }
 function pfDrawBlocks(){
@@ -1572,16 +1615,22 @@ function pfRespawn(){
 }
 // (Re)draws everything inside the arena for the current pfLevel
 function pfBuildScene(){
-  const T = pfT, inner = $('plat-inner'); inner.innerHTML = ''; pfHint = null;
+  const T = pfT, inner = $('plat-inner'); inner.innerHTML = ''; pfHint = null; pfSecretEls = [];
   for(let g = 0; g < pfLevel; g++) for(let r = 0; r < 5; r++) for(let c = 0; c < 5; c++) pfMk('pc', (5+c)*T+2, (PF_OY+g*5+r)*T+2, T-4, T-4);
   const bl = document.createElement('div'); bl.id = 'plat-blocks'; inner.appendChild(bl);
   pfMk('pledge', pfLedge[0]*T, pfLedge[1]*T, (pfLedge[2]-pfLedge[0])*T, (pfLedge[3]-pfLedge[1])*T);
+  if(pfLevel === 2){ // hidden room inside the ledge, only hinted at by a faint crack
+    const ck = pfMk('pcrack', 4.86*T, 3.3*T, T*.1, T*.4);
+    ck.innerHTML = '<svg viewBox="0 0 10 40" width="100%" height="100%" preserveAspectRatio="none"><path d="M5 0L3 9L6 17L2 27L4 40" fill="none" stroke="rgba(6,7,18,.2)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-linecap="round"/></svg>';
+    pfSecretEls = PF_CAVITY.map(r => pfMk('psecret', r[0]*T, r[1]*T, (r[2]-r[0])*T, (r[3]-r[1])*T));
+    pfSecretSeen = false;
+  }
   const ex = pfMk('pexit', pfExit[0]*T, pfExit[1]*T, (pfExit[2]-pfExit[0])*T, (pfExit[3]-pfExit[1])*T);
   ex.innerHTML = '<div class="pdoor"></div>';
   pfMk('pledge pfloor', 0, pfH*T, PF_N*T, pfFloorH);
   pfMk('pceil', 0, 0, PF_N*T, T*.6);
   if(pfLevel === 2){ // a book dropped in the bottom left corner
-    const bw = T * 1.05, bh = bw * 20 / 64;
+    const bw = T * .525, bh = bw * 20 / 64;
     const bk = pfMk('pbook', .18 * T, pfH * T - bh, bw, bh);
     bk.innerHTML = '<svg viewBox="0 0 64 20" width="100%" height="100%"><rect x="0" y="2" width="6" height="17" rx="2.5" fill="#7a2634"/><rect x="3" y="14" width="60" height="5" rx="1.5" fill="#8b2f3c"/><rect x="7" y="7" width="55" height="7.5" fill="#f3ead2"/><path d="M9 9.5H60M9 12H58" stroke="#cfc3a2" stroke-width=".7"/><rect x="2" y="2" width="59" height="5.5" rx="1.5" fill="#a63a4a"/><rect x="13" y="3.7" width="30" height="1.5" fill="#e8c46a" opacity=".85"/><rect x="56" y="14" width="2.4" height="5.5" fill="#e8c46a"/></svg>';
   }
@@ -1609,7 +1658,7 @@ function pfNextLevel(){
   if(pfLevel !== 1 || pfTrans || !pfStarted) return;
   pfTrans = true; pfActive = false; pfLoopId++; SFX.grow();
   $('skip-btn').style.display = 'none';
-  send('level6', {}); MUS.play(3);
+  send('level6', {});
   const el = $('plat'), inner = $('plat-inner');
   inner.style.opacity = '0';
   setTimeout(() => { el.style.height = ((pfH + 5) * pfT + pfFloorH) + 'px'; }, 550);
@@ -1624,6 +1673,10 @@ function pfNextLevel(){
 }
 function pfDraw(){
   pfEl.style.transform = `translate(${pf.x * pfT}px,${pf.y * pfT}px)`;
+  if(pfSecretEls.length && !pfSecretSeen){
+    const cx = pf.x + PF_S / 2, cy = pf.y + PF_S / 2;
+    if(PF_CAVITY.some(r => cx > r[0] && cx < r[2] && cy > r[1] && cy < r[3])){ pfSecretSeen = true; pfSecretEls.forEach(e => e.classList.add('show')); }
+  }
   if(pfHint){
     pfHint.style.transform = `translate(${pf.x * pfT + PF_S * pfT / 2 - pfHintS / 2}px,${pf.y * pfT - pfHintS - pfT * .15}px)`;
     pfHint.classList.toggle('show', pfNearBook() && !pfPaperOpen);
@@ -1697,7 +1750,7 @@ function pfWin(){
 }
 function startPlatformer(){
   if(pfStarted) return;
-  MUS.fadeOut();
+  MUS.play(3);
   pfStarted = true; p1Stage = 5;
   buildPlatformer();
   $('platformer-section').classList.add('visible');
@@ -2507,7 +2560,7 @@ function startTetris3(){
 function startLevel6(){ MUS.play(3); if(platMode) resetBoard(); } // fresh grid for the taller platformer (also syncs to Player 1)
 function startLevel5(){
   if(platMode) return;
-  MUS.fadeOut();
+  MUS.play(3);
   platMode = true;
   if(mz && ballEl){                // the ball is gone, but the maze keeps rotating with Player 1's buttons
     ballEl.style.display = 'none';
